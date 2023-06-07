@@ -4,6 +4,11 @@
 
 #include <linux/types.h>
 
+/* msm_vidc_utils controls header from kernel 4.14 */
+#ifdef CONFIG_ARCH_SDM845
+#include "msm_vidc_utils_legacy.h"
+#else
+
 #define MSM_VIDC_EXTRADATA_NONE 0x00000000
 struct msm_vidc_extradata_header {
 	__u32 size;
@@ -372,4 +377,5 @@ enum msm_vidc_cb_event_types {
 	MSM_VIDC_COLOR_SPACE,
 	MSM_VIDC_FW_MIN_COUNT,
 };
+#endif /* CONFIG_ARCH_SDM845 */
 #endif
