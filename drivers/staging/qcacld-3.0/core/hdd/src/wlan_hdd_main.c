@@ -16065,12 +16065,10 @@ static QDF_STATUS hdd_qdf_init(void)
 
 	status = hdd_qdf_print_init();
 	if (QDF_IS_STATUS_ERROR(status))
-		goto exit;
 
 	status = qdf_debugfs_init();
 	if (QDF_IS_STATUS_ERROR(status)) {
 		hdd_err("Failed to init debugfs; status:%u", status);
-		goto print_deinit;
 	}
 
 	qdf_lock_stats_init();
@@ -16115,10 +16113,7 @@ event_deinit:
 	qdf_mem_exit();
 	qdf_lock_stats_deinit();
 	qdf_debugfs_exit();
-print_deinit:
-	hdd_qdf_print_deinit();
 
-exit:
 	return status;
 }
 
