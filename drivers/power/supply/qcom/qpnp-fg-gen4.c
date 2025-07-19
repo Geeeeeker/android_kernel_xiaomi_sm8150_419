@@ -6009,7 +6009,6 @@ static int fg_gen4_parse_nvmem_dt(struct fg_gen4_chip *chip)
 {
 	struct fg_dev *fg = &chip->fg;
 	int rc;
-	int size;
 
 	if (of_find_property(fg->dev->of_node, "nvmem", NULL)) {
 		chip->fg_nvmem = devm_nvmem_device_get(fg->dev, "fg_sdam");
@@ -6202,6 +6201,7 @@ static int fg_gen4_parse_dt(struct fg_gen4_chip *chip)
 	struct device_node *node = fg->dev->of_node;
 	u32 temp;
 	int rc;
+	int size;
 
 	if (!node)  {
 		dev_err(fg->dev, "device tree node missing\n");
@@ -6846,7 +6846,7 @@ static int fg_gen4_probe(struct platform_device *pdev)
 	init_completion(&chip->mem_attn);
 	INIT_WORK(&fg->status_change_work, status_change_work);
 	INIT_WORK(&chip->esr_calib_work, esr_calib_work);
-        INIT_WORK(&chip->vbat_sync_work, vbat_sync_work);
+    INIT_WORK(&chip->vbat_sync_work, vbat_sync_work);
 	INIT_WORK(&chip->soc_scale_work, soc_scale_work);
 	INIT_DELAYED_WORK(&fg->profile_load_work, profile_load_work);
 	INIT_DELAYED_WORK(&fg->sram_dump_work, sram_dump_work);
