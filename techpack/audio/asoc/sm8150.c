@@ -4316,7 +4316,8 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "SPK1 OUT");
 	snd_soc_dapm_ignore_suspend(dapm, "SPK2 OUT");
 	snd_soc_dapm_ignore_suspend(dapm, "AIF4 VI");
-	snd_soc_dapm_ignore_suspend(dapm, "VIINPUT");
+	snd_soc_dapm_ignore_suspend(dapm, "VIINPUT");	
+	snd_soc_dapm_ignore_suspend(dapm, "WDMA3_OUT");
 
 	if (!strcmp(dev_name(codec_dai->dev), "tavil_codec")) {
 #ifdef CONFIG_MACH_XIAOMI_SM8150
