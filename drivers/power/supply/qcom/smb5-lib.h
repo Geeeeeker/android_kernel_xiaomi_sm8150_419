@@ -656,12 +656,11 @@ struct smb_charger {
 	struct votable		*chg_disable_votable;
 	struct votable		*pl_enable_votable_indirect;
 	struct votable		*cp_disable_votable;
-	struct votable		*cp_ilim_votable;
 	struct votable		*smb_override_votable;
 	struct votable		*icl_irq_disable_votable;
 	struct votable		*limited_irq_disable_votable;
 	struct votable		*hdc_irq_disable_votable;
-	struct votable          *cp_ilim_votable;
+	struct votable      *cp_ilim_votable;
 	struct votable		*temp_change_irq_disable_votable;
 	struct votable		*qnovo_disable_votable;
 
