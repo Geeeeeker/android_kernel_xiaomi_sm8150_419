@@ -235,6 +235,10 @@ struct smb5 {
 	struct smb_dt_props	dt;
 };
 
+#ifndef CONFIG_QPNP_SMB5_VAYU
+static struct smb_charger *__smbchg;
+#endif
+
 static int __debug_mask = PR_MISC | PR_PARALLEL | PR_OTG | PR_OEM | PR_WLS;
 
 static ssize_t pd_disabled_show(struct device *dev, struct device_attribute
@@ -4243,6 +4247,14 @@ static int smb5_init_typec_class(struct smb5 *chip)
 	return rc;
 }
 
+#ifndef CONFIG_QPNP_SMB5_VAYU
+struct usbpd *smb_get_usbpd(void)
+{
+		return __smbchg->pd;
+}
+EXPORT_SYMBOL(smb_get_usbpd);
+#endif
+
 static int smb5_probe(struct platform_device *pdev)
 {
 	struct smb5 *chip;
@@ -4287,6 +4299,11 @@ static int smb5_probe(struct platform_device *pdev)
 		pr_err("Couldn't parse device tree rc=%d\n", rc);
 		return rc;
 	}
+
+#ifndef CONFIG_QPNP_SMB5_VAYU
+	if (chg->use_bq_pump)
+			__smbchg = chg;
+#endif
 
 	if (alarmtimer_get_rtcdev())
 		alarm_init(&chg->lpd_recheck_timer, ALARM_REALTIME,
