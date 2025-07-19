@@ -1007,6 +1007,7 @@ static int smb5_parse_dt_adc_channels(struct smb_charger *chg)
 static int smb5_parse_dt_currents(struct smb5 *chip, struct device_node *node)
 {
 	int rc = 0, tmp;
+	int byte_len;
 	struct smb_charger *chg = &chip->chg;
 
 	rc = of_property_read_u32(node,

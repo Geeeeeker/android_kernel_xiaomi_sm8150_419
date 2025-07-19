@@ -140,8 +140,6 @@ static ssize_t power_supply_show_property(struct device *dev,
 	struct power_supply *psy = dev_get_drvdata(dev);
 	enum power_supply_property psp = attr - power_supply_attrs;
 	union power_supply_propval value;
-	long val;
-	int64_t num_long;
 
 	if (psp == POWER_SUPPLY_PROP_TYPE) {
 		value.intval = psy->desc->type;
@@ -290,6 +288,8 @@ static ssize_t power_supply_store_property(struct device *dev,
 	struct power_supply *psy = dev_get_drvdata(dev);
 	enum power_supply_property psp = attr - power_supply_attrs;
 	union power_supply_propval value;
+	long val;
+	int64_t num_long;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -328,7 +328,7 @@ static ssize_t power_supply_store_property(struct device *dev,
 		if (ret < 0)
 			return ret;
 		value.int64val = num_long;
-		ret = power_supply_set_property(psy, off, &value);
+		ret = power_supply_set_property(psy, psp, &value);
 		if (ret < 0)
 			return ret;
 		else
