@@ -10,7 +10,6 @@
 #include <linux/of_gpio.h>
 #include <linux/pwm.h>
 #include <video/mipi_display.h>
-#include <asm/hwconf_manager.h>
 
 #include "dsi_panel.h"
 #include "dsi_display.h"
@@ -695,7 +694,7 @@ static int dsi_panel_wled_register(struct dsi_panel *panel,
 	bl->raw_bd = bd;
 	return 0;
 }
-
+/* FIXME
 static int dsi_panel_dcs_set_display_brightness_c2(struct mipi_dsi_device *dsi,
 			u32 bl_lvl)
 {
@@ -709,7 +708,7 @@ static int dsi_panel_dcs_set_display_brightness_c2(struct mipi_dsi_device *dsi,
 
 	return mipi_dsi_dcs_write(dsi, 0xC2, payload, sizeof(payload));
 }
-
+*/
 static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	u32 bl_lvl)
 {
@@ -3933,18 +3932,6 @@ static int dsi_panel_parse_mi_config(struct dsi_panel *panel,
 	panel->panel_dead_flag = false;
 	panel->tddi_doubleclick_flag = false;
 
-	register_hw_monitor_info(HWMON_CONPONENT_NAME);
-	add_hw_monitor_info(HWMON_CONPONENT_NAME, HWMON_KEY_ACTIVE, "0");
-	add_hw_monitor_info(HWMON_CONPONENT_NAME, HWMON_KEY_REFRESH, "0");
-	add_hw_monitor_info(HWMON_CONPONENT_NAME, HWMON_KEY_BOOTTIME, "0");
-	add_hw_monitor_info(HWMON_CONPONENT_NAME, HWMON_KEY_DAYS, "0");
-	add_hw_monitor_info(HWMON_CONPONENT_NAME, HWMON_KEY_BL_AVG, "0");
-	add_hw_monitor_info(HWMON_CONPONENT_NAME, HWMON_KEY_BL_HIGH, "0");
-	add_hw_monitor_info(HWMON_CONPONENT_NAME, HWMON_KEY_BL_LOW, "0");
-	add_hw_monitor_info(HWMON_CONPONENT_NAME, HWMON_KEY_HBM_DRUATION, "0");
-	add_hw_monitor_info(HWMON_CONPONENT_NAME, HWMON_KEY_HBM_TIMES, "0");
-
-
 	return rc;
 }
 
@@ -3979,10 +3966,11 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 
 	panel_model = utils->get_property(utils->data,
 				"qcom,mdss-dsi-panel-model", NULL);
+/* FIXME - HW
 	if (panel_model) {
 		register_hw_component_info(HWCONPONENT_NAME);
 		add_hw_component_info(HWCONPONENT_NAME, HWCONPONENT_KEY_LCD, (char *)panel_model);
-	}
+	}*/
 
 	dispparam_enabled = utils->read_bool(utils->data,
 				"qcom,dispparam-enabled" );
@@ -4850,7 +4838,9 @@ int dsi_panel_prepare(struct dsi_panel *panel)
 			pr_err("[%s] failed to reset panel, rc=%d\n", panel->name, rc);
 			goto error;
 		}
+#if 0
 		}
+#endif
 	}
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_PRE_ON);
@@ -6022,7 +6012,7 @@ int dsi_panel_read_cmd_set(struct dsi_panel *panel,
 	cmds->msg.rx_buf = read_config->rbuf;
 	cmds->msg.rx_len = read_config->cmds_rlen;
 
-	rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &(cmds->msg), flags);
+	rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &(cmds->msg), &flags);
 	if (rc <= 0) {
 		pr_err("rx cmd transfer failed rc=%d\n", rc);
 		goto exit;
