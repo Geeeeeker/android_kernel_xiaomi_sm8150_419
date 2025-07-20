@@ -148,6 +148,20 @@ struct node *reference_node(struct node *node)
 	return node;
 }
 
+struct node *omit_node_if_unused(struct node *node)
+{
+	node->omit_if_unused = 1;
+
+	return node;
+}
+
+struct node *reference_node(struct node *node)
+{
+	node->is_referenced = 1;
+
+	return node;
+}
+
 struct node *merge_nodes(struct node *old_node, struct node *new_node)
 {
 	struct property *new_prop, *old_prop;
@@ -228,6 +242,35 @@ struct node *merge_nodes(struct node *old_node, struct node *new_node)
 	free(new_node);
 
 	return old_node;
+}
+
+struct node * add_orphan_node(struct node *dt, struct node *new_node, char *ref)
+{
+	static unsigned int next_orphan_fragment = 0;
+	struct node *node;
+	struct property *p;
+	struct data d = empty_data;
+	char *name;
+
+	if (ref[0] == '/') {
+		d = data_append_data(d, ref, strlen(ref) + 1);
+
+		p = build_property("target-path", d);
+	} else {
+		d = data_add_marker(d, REF_PHANDLE, ref);
+		d = data_append_integer(d, 0xffffffff, 32);
+
+		p = build_property("target", d);
+	}
+
+	xasprintf(&name, "fragment@%u",
+			next_orphan_fragment++);
+	name_node(new_node, "__overlay__");
+	node = build_node(p, new_node);
+	name_node(node, name);
+
+	add_child(dt, node);
+	return dt;
 }
 
 struct node * add_orphan_node(struct node *dt, struct node *new_node, char *ref)
@@ -437,6 +480,12 @@ cell_t propval_cell(struct property *prop)
 {
 	assert(prop->val.len == sizeof(cell_t));
 	return fdt32_to_cpu(*((fdt32_t *)prop->val.val));
+}
+
+cell_t propval_cell_n(struct property *prop, int n)
+{
+	assert(prop->val.len / sizeof(cell_t) >= n);
+	return fdt32_to_cpu(*((fdt32_t *)prop->val.val + n));
 }
 
 cell_t propval_cell_n(struct property *prop, int n)
