@@ -1554,7 +1554,7 @@ int cam_smmu_reserve_sec_heap(int32_t smmu_hdl,
 
 	sec_heap_iova = iommu_cb_set.cb_info[idx].secheap_info.iova_start;
 	sec_heap_iova_len = iommu_cb_set.cb_info[idx].secheap_info.iova_len;
-	size = iommu_map_sg(iommu_cb_set.cb_info[idx].mapping->domain,
+	size = iommu_map_sg(iommu_cb_set.cb_info[idx].domain,
 		sec_heap_iova,
 		secheap_buf->table->sgl,
 		secheap_buf->table->nents,
@@ -1618,7 +1618,7 @@ int cam_smmu_release_sec_heap(int32_t smmu_hdl)
 	sec_heap_iova = iommu_cb_set.cb_info[idx].secheap_info.iova_start;
 	sec_heap_iova_len = iommu_cb_set.cb_info[idx].secheap_info.iova_len;
 
-	size = iommu_unmap(iommu_cb_set.cb_info[idx].mapping->domain,
+	size = iommu_unmap(iommu_cb_set.cb_info[idx].domain,
 		sec_heap_iova,
 		sec_heap_iova_len);
 	if (size != sec_heap_iova_len) {
@@ -1785,7 +1785,7 @@ err_alloc:
 			size,
 			iommu_cb_set.cb_info[idx].handle);
 
-		iommu_unmap(iommu_cb_set.cb_info[idx].mapping->domain,
+		iommu_unmap(iommu_cb_set.cb_info[idx].domain,
 			*paddr_ptr,
 			*len_ptr);
 	}
@@ -2178,7 +2178,7 @@ static int cam_smmu_free_scratch_buffer_remove_from_list(
 	int rc = 0;
 	size_t unmapped;
 	struct iommu_domain *domain =
-		iommu_cb_set.cb_info[idx].mapping->domain;
+		iommu_cb_set.cb_info[idx].domain;
 	struct scratch_mapping *scratch_map =
 		&iommu_cb_set.cb_info[idx].scratch_map;
 
