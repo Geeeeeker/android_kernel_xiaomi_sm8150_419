@@ -142,3 +142,6 @@ Android.bp
 
 *.sh
 out/
+pstore/
+arch/arm64/boot/dts/qcom-sm8150/
+arch/arm64/boot/dts/xiaomi/
