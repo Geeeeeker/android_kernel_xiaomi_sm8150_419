@@ -12,4 +12,5 @@ obj-$(CONFIG_MSM_NPU_LEGACY) += npu_legacy/
 obj-$(CONFIG_MSM_GLOBAL_SYNX) += synx/
 obj-$(CONFIG_TSPP) += broadcast/
 obj-$(CONFIG_DVB_MPQ) += dvb/
+obj-$(CONFIG_SPECTRA_CAMERA) += camera/
 obj-$(CONFIG_MSMB_CAMERA) += camera_v2/
