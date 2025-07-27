@@ -244,10 +244,16 @@ KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/dsp/Module
 KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/soc/Module.symvers
 endif
 
+CDEFINES += -DCONFIG_SND_SOC_HEADSET_2700MV
+
 ifeq ($(KERNEL_BUILD), 1)
 	obj-y	+= wcd934x/
+	obj-y	+= tas2557/
+	obj-y	+= tas256x/
+	obj-y	+= cs35l41/
 	obj-y	+= wcd937x/
 	obj-y	+= wcd938x/
+	obj-y	+= tfa98xx/
 	obj-y	+= bolero/
 	obj-y	+= rouleur/
 	obj-y	+= wsa883x/
