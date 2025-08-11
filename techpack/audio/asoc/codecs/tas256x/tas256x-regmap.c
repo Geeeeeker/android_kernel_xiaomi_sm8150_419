@@ -527,20 +527,20 @@ static int tas2564_put(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = snd_soc_kcontrol_component(kcontrol);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 #endif
 	struct tas256x_priv *p_tas256x = NULL;
 	int ret = -1;
 
-	if (codec == NULL) {
-		pr_err("%s:codec is NULL\n", __func__);
+	if (component == NULL) {
+		pr_err("%s:component is NULL\n", __func__);
 		return ret;
 	}
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	p_tas256x = snd_soc_component_get_drvdata(codec);
+	p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	p_tas256x = snd_soc_codec_get_drvdata(codec);
 #endif
@@ -567,19 +567,19 @@ static int tas2564_get(struct snd_kcontrol *kcontrol,
 {
 	int ret = -1;
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = snd_soc_kcontrol_component(kcontrol);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 #endif
 	struct tas256x_priv *p_tas256x = NULL;
 
-	if (codec == NULL) {
-		pr_err("%s:codec is NULL\n", __func__);
+	if (component == NULL) {
+		pr_err("%s:component is NULL\n", __func__);
 		return ret;
 	}
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	p_tas256x = snd_soc_component_get_drvdata(codec);
+	p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	p_tas256x = snd_soc_codec_get_drvdata(codec);
 #endif
@@ -605,7 +605,7 @@ static int tas256x_put(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = snd_soc_kcontrol_component(kcontrol);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 #endif
@@ -614,13 +614,13 @@ static int tas256x_put(struct snd_kcontrol *kcontrol,
 	struct tas256x_priv *p_tas256x = NULL;
 	int ret = -1;
 
-	if ((codec == NULL) || (mc == NULL)) {
-		pr_err("%s:codec or control is NULL\n", __func__);
+	if ((component == NULL) || (mc == NULL)) {
+		pr_err("%s:component or control is NULL\n", __func__);
 		return ret;
 	}
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	p_tas256x = snd_soc_component_get_drvdata(codec);
+	p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	p_tas256x = snd_soc_codec_get_drvdata(codec);
 #endif
@@ -693,7 +693,7 @@ static int tas256x_get(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = snd_soc_kcontrol_component(kcontrol);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 #endif
@@ -702,13 +702,13 @@ static int tas256x_get(struct snd_kcontrol *kcontrol,
 	struct tas256x_priv *p_tas256x = NULL;
 	int ret = -1;
 
-	if ((codec == NULL) || (mc == NULL)) {
-		pr_err("%s:codec or control is NULL\n", __func__);
+	if ((component == NULL) || (mc == NULL)) {
+		pr_err("%s:component or control is NULL\n", __func__);
 		return ret;
 	}
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	p_tas256x = snd_soc_component_get_drvdata(codec);
+	p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	p_tas256x = snd_soc_codec_get_drvdata(codec);
 #endif
@@ -778,7 +778,7 @@ static int tas256x_multi_put(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = snd_soc_kcontrol_component(kcontrol);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 #endif
@@ -787,13 +787,13 @@ static int tas256x_multi_put(struct snd_kcontrol *kcontrol,
 	struct tas256x_priv *p_tas256x = NULL;
 	int ret = -1;
 
-	if ((codec == NULL) || (mc == NULL)) {
-		pr_err("%s:codec or control is NULL\n", __func__);
+	if ((component == NULL) || (mc == NULL)) {
+		pr_err("%s:component or control is NULL\n", __func__);
 		return ret;
 	}
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	p_tas256x = snd_soc_component_get_drvdata(codec);
+	p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	p_tas256x = snd_soc_codec_get_drvdata(codec);
 #endif
@@ -827,7 +827,7 @@ static int tas256x_multi_get(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = snd_soc_kcontrol_component(kcontrol);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 #endif
@@ -836,13 +836,13 @@ static int tas256x_multi_get(struct snd_kcontrol *kcontrol,
 	struct tas256x_priv *p_tas256x = NULL;
 	int ret = -1;
 
-	if ((codec == NULL) || (mc == NULL)) {
-		pr_err("%s:codec or control is NULL\n", __func__);
+	if ((component == NULL) || (mc == NULL)) {
+		pr_err("%s:component or control is NULL\n", __func__);
 		return ret;
 	}
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	p_tas256x = snd_soc_component_get_drvdata(codec);
+	p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	p_tas256x = snd_soc_codec_get_drvdata(codec);
 #endif
@@ -873,14 +873,14 @@ static int tas256x_enum_get(struct snd_kcontrol *kcontrol,
 {
 	int ret = -1;
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = snd_soc_kcontrol_component(kcontrol);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 #endif
 	struct tas256x_priv *p_tas256x = NULL;
 
-	if (codec == NULL) {
-		pr_err("%s:codec is NULL\n", __func__);
+	if (component == NULL) {
+		pr_err("%s:component is NULL\n", __func__);
 		return ret;
 	}
 
@@ -890,7 +890,7 @@ static int tas256x_enum_get(struct snd_kcontrol *kcontrol,
 	}
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	p_tas256x = snd_soc_component_get_drvdata(codec);
+	p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	p_tas256x = snd_soc_codec_get_drvdata(codec);
 #endif
@@ -958,7 +958,7 @@ static int tas256x_enum_put(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = snd_soc_kcontrol_component(kcontrol);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 #endif
@@ -967,13 +967,13 @@ static int tas256x_enum_put(struct snd_kcontrol *kcontrol,
 	struct tas256x_priv *p_tas256x = NULL;
 	int ret = -1;
 
-	if ((codec == NULL) || (mc == NULL)) {
-		pr_err("%s:codec or control is NULL\n", __func__);
+	if ((component == NULL) || (mc == NULL)) {
+		pr_err("%s:component or control is NULL\n", __func__);
 		return ret;
 	}
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	p_tas256x = snd_soc_component_get_drvdata(codec);
+	p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	p_tas256x = snd_soc_codec_get_drvdata(codec);
 #endif
@@ -1183,26 +1183,26 @@ static const struct snd_kcontrol_new tas2562_right_controls[] = {
 };
 
 static int tas2564_probe(struct tas256x_priv *p_tas256x,
-	struct snd_soc_codec *codec, int chn)
+	struct snd_soc_component *component, int chn)
 {
 	int ret = -1;
 
-	if ((!p_tas256x) || (!codec)) {
-		pr_err("tas256x:%s p_tas256x or codec is Null\n", __func__);
+	if ((!p_tas256x) || (!component)) {
+		pr_err("tas256x:%s p_tas256x or component is Null\n", __func__);
 		return ret;
 	}
 	dev_dbg(p_tas256x->dev, "%s channel %d", __func__, chn);
 
 	tas256x_update_default_params(p_tas256x, chn);
 	if (chn == channel_left) {
-		ret = snd_soc_add_codec_controls(codec, tas256x_left_controls,
+		ret = snd_soc_add_component_controls(component, tas256x_left_controls,
 			ARRAY_SIZE(tas256x_left_controls));
-		ret = snd_soc_add_codec_controls(codec, tas2564_left_controls,
+		ret = snd_soc_add_component_controls(component, tas2564_left_controls,
 			ARRAY_SIZE(tas2564_left_controls));
 	} else if (chn == channel_right) {
-		ret = snd_soc_add_codec_controls(codec, tas256x_right_controls,
+		ret = snd_soc_add_component_controls(component, tas256x_right_controls,
 			ARRAY_SIZE(tas256x_right_controls));
-		ret = snd_soc_add_codec_controls(codec, tas2564_right_controls,
+		ret = snd_soc_add_component_controls(component, tas2564_right_controls,
 			ARRAY_SIZE(tas2564_right_controls));
 	} else {
 		dev_err(p_tas256x->dev, "Invalid Channel %d\n", chn);
@@ -1212,26 +1212,26 @@ static int tas2564_probe(struct tas256x_priv *p_tas256x,
 }
 
 static int tas2562_probe(struct tas256x_priv *p_tas256x,
-	struct snd_soc_codec *codec, int chn)
+	struct snd_soc_component *component, int chn)
 {
 	int ret = -1;
 
-	if ((!p_tas256x) || (!codec)) {
-		pr_err("tas256x:%s p_tas256x or codec is Null\n", __func__);
+	if ((!p_tas256x) || (!component)) {
+		pr_err("tas256x:%s p_tas256x or component is Null\n", __func__);
 		return ret;
 	}
 	dev_dbg(p_tas256x->dev, "%s channel %d", __func__, chn);
 
 	tas256x_update_default_params(p_tas256x, chn);
 	if (chn == channel_left) {
-		ret = snd_soc_add_codec_controls(codec, tas256x_left_controls,
+		ret = snd_soc_add_component_controls(component, tas256x_left_controls,
 			ARRAY_SIZE(tas256x_left_controls));
-		ret = snd_soc_add_codec_controls(codec, tas2562_left_controls,
+		ret = snd_soc_add_component_controls(component, tas2562_left_controls,
 			ARRAY_SIZE(tas2562_left_controls));
 	} else if (chn == channel_right) {
-		ret = snd_soc_add_codec_controls(codec, tas256x_right_controls,
+		ret = snd_soc_add_component_controls(component, tas256x_right_controls,
 			ARRAY_SIZE(tas256x_right_controls));
-		ret = snd_soc_add_codec_controls(codec, tas2562_right_controls,
+		ret = snd_soc_add_component_controls(component, tas2562_right_controls,
 			ARRAY_SIZE(tas2562_right_controls));
 	} else {
 		dev_err(p_tas256x->dev, "Invalid Channel %d\n", chn);
