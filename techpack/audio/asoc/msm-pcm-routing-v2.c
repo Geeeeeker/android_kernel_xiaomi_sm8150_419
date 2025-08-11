@@ -31782,7 +31782,7 @@ static int msm_routing_probe(struct snd_soc_component *component)
 #endif
 	/* for mius start */
 #ifdef CONFIG_US_PROXIMITY
-	mius_add_platform_controls(platform);
+	mius_add_component_controls(component);
 #endif
 	/* for mius end */
 
