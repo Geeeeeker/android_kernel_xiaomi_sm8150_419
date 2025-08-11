@@ -631,22 +631,22 @@ static int wcd937x_codec_ear_dac_event(struct snd_soc_dapm_widget *w,
 		wcd937x_rx_clk_enable(component);
 #ifdef CONFIG_SND_SOC_FOR_ULTRASOUND_PATH
 		wcd937x->ear_rx_path =
-			snd_soc_read(codec, WCD937X_DIGITAL_CDC_EAR_PATH_CTL);
+			snd_soc_component_read32(component, WCD937X_DIGITAL_CDC_EAR_PATH_CTL);
 		if (wcd937x->ear_rx_path & EAR_RX_PATH_AUX) {
-			snd_soc_update_bits(codec,
+			snd_soc_component_update_bits(component,
 					WCD937X_DIGITAL_CDC_AUX_GAIN_CTL,
 					0x01, 0x01);
-			snd_soc_update_bits(codec,
+			snd_soc_component_update_bits(component,
 					WCD937X_DIGITAL_CDC_DIG_CLK_CTL,
 					0x04, 0x04);
-			snd_soc_update_bits(codec,
+			snd_soc_component_update_bits(component,
 					WCD937X_ANA_EAR_COMPANDER_CTL,
 					0x80, 0x80);
 		} else {
-			snd_soc_update_bits(codec,
+			snd_soc_component_update_bits(component,
 					WCD937X_DIGITAL_CDC_HPH_GAIN_CTL,
 					0x04, 0x04);
-			snd_soc_update_bits(codec,
+			snd_soc_component_update_bits(component,
 					WCD937X_DIGITAL_CDC_DIG_CLK_CTL,
 					0x01, 0x01);
 		}
@@ -684,7 +684,7 @@ static int wcd937x_codec_ear_dac_event(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMD:
 #ifdef CONFIG_SND_SOC_FOR_ULTRASOUND_PATH
 		if (wcd937x->ear_rx_path & EAR_RX_PATH_AUX)
-			snd_soc_update_bits(codec,
+			snd_soc_component_update_bits(component,
 					WCD937X_DIGITAL_CDC_AUX_GAIN_CTL,
 					0x01, 0x00);
 		snd_soc_update_bits(codec,
@@ -1492,13 +1492,13 @@ static int wcd937x_codec_enable_adc(struct snd_soc_dapm_widget *w,
 		wcd937x->ana_adc_count--;
 		mutex_unlock(&wcd937x->ana_tx_clk_lock);
 
-		dev_dbg(codec->dev, "%s SND_SOC_DAPM_POST_PMD, ana_adc_count=%d\n", __func__, wcd937x->ana_adc_count);
+		dev_dbg(component->dev, "%s SND_SOC_DAPM_POST_PMD, ana_adc_count=%d\n", __func__, wcd937x->ana_adc_count);
 
 		wcd937x_tx_connect_port(codec, ADC1 + (w->shift), false);
 		if (wcd937x->ana_adc_count <= 0) {
 			wcd937x->ana_adc_count = 0;
-			dev_dbg(codec->dev, "%s SND_SOC_DAPM_POST_PMD, ana_adc_count=%d, POWER DOWN\n", __func__, wcd937x->ana_adc_count);
-			snd_soc_update_bits(codec, WCD937X_DIGITAL_CDC_ANA_CLK_CTL,
+			dev_dbg(component->dev, "%s SND_SOC_DAPM_POST_PMD, ana_adc_count=%d, POWER DOWN\n", __func__, wcd937x->ana_adc_count);
+			snd_soc_component_update_bits(component, WCD937X_DIGITAL_CDC_ANA_CLK_CTL,
 					0x08, 0x00);
 		}
 #else
@@ -1562,16 +1562,16 @@ static int wcd937x_enable_req(struct snd_soc_dapm_widget *w,
 		wcd937x->ana_tx_req_count--;
 		mutex_unlock(&wcd937x->ana_tx_clk_lock);
 
-		dev_dbg(codec->dev, "%s SND_SOC_DAPM_POST_PMD, ana_tx_req_count=%d\n", __func__, wcd937x->ana_tx_req_count);
+		dev_dbg(component->dev, "%s SND_SOC_DAPM_POST_PMD, ana_tx_req_count=%d\n", __func__, wcd937x->ana_tx_req_count);
 
 		if (wcd937x->ana_tx_req_count <= 0) {
-			dev_dbg(codec->dev, "%s SND_SOC_DAPM_POST_PMD, ana_tx_req_count=%d, POWER DOWN\n", __func__, wcd937x->ana_tx_req_count);
+			dev_dbg(component->dev, "%s SND_SOC_DAPM_POST_PMD, ana_tx_req_count=%d, POWER DOWN\n", __func__, wcd937x->ana_tx_req_count);
 			wcd937x->ana_tx_req_count = 0;
-			snd_soc_update_bits(codec, WCD937X_ANA_TX_CH1, 0x80, 0x00);
-			snd_soc_update_bits(codec, WCD937X_ANA_TX_CH2, 0x80, 0x00);
-			snd_soc_update_bits(codec, WCD937X_ANA_TX_CH3, 0x80, 0x00);
-			snd_soc_update_bits(codec, WCD937X_ANA_TX_CH3_HPF, 0x80, 0x00);
-			snd_soc_update_bits(codec, WCD937X_DIGITAL_CDC_DIG_CLK_CTL,
+			snd_soc_component_update_bits(component, WCD937X_ANA_TX_CH1, 0x80, 0x00);
+			snd_soc_component_update_bits(component, WCD937X_ANA_TX_CH2, 0x80, 0x00);
+			snd_soc_component_update_bits(component, WCD937X_ANA_TX_CH3, 0x80, 0x00);
+			snd_soc_component_update_bits(component, WCD937X_ANA_TX_CH3_HPF, 0x80, 0x00);
+			snd_soc_component_update_bits(component, WCD937X_DIGITAL_CDC_DIG_CLK_CTL,
 					0x10, 0x00);
 		}
 #else

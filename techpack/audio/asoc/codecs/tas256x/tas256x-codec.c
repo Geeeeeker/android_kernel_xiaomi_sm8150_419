@@ -80,11 +80,11 @@ static int tas256x_mute_ctrl_put(struct snd_kcontrol *pKcontrol,
 	struct snd_ctl_elem_value *pValue);
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-static unsigned int tas256x_codec_read(struct snd_soc_component *codec,
+static unsigned int tas256x_codec_read(struct snd_soc_component *component,
 		unsigned int reg)
 {
 	unsigned int value = 0;
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 	int ret = 0;
 
 	switch (reg) {
@@ -156,7 +156,7 @@ static int tas256xiv_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec
+	struct snd_soc_component *component
 				= snd_soc_kcontrol_component(kcontrol);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
@@ -164,13 +164,13 @@ static int tas256xiv_put(struct snd_kcontrol *kcontrol,
 	struct tas256x_priv *p_tas256x = NULL;
 	int iv_enable = 0, n_result = 0;
 
-	if (codec == NULL) {
-		pr_err("%s:codec is NULL\n", __func__);
+	if (component == NULL) {
+		pr_err("%s:component is NULL\n", __func__);
 		return 0;
 	}
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	p_tas256x = snd_soc_component_get_drvdata(codec);
+	p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	p_tas256x = snd_soc_codec_get_drvdata(codec);
 #endif
@@ -194,19 +194,19 @@ static int tas256xiv_get(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = snd_soc_kcontrol_component(kcontrol);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 #endif
 	struct tas256x_priv *p_tas256x = NULL;
 
-	if (codec == NULL) {
-		pr_err("%s:codec is NULL\n", __func__);
+	if (component == NULL) {
+		pr_err("%s:component is NULL\n", __func__);
 		return 0;
 	}
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	p_tas256x = snd_soc_component_get_drvdata(codec);
+	p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	p_tas256x = snd_soc_codec_get_drvdata(codec);
 #endif
@@ -231,10 +231,10 @@ SOC_ENUM_EXT("TAS256X IVSENSE ENABLE", tas256x_enum[0],
 };
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-static int tas256x_codec_write(struct snd_soc_component *codec,
+static int tas256x_codec_write(struct snd_soc_component *component,
 				unsigned int reg, unsigned int value)
 {
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 	int ret = 0;
 
 	dev_dbg(p_tas256x->dev, "%s: %d, %d", __func__, reg, value);
@@ -298,9 +298,9 @@ static int tas256x_codec_write(struct snd_soc_codec *codec,
 
 #ifdef CODEC_PM
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-static int tas256x_codec_suspend(struct snd_soc_component *codec)
+static int tas256x_codec_suspend(struct snd_soc_component *component)
 {
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 	int ret = 0;
 
 	mutex_lock(&p_tas256x->codec_lock);
@@ -491,8 +491,8 @@ static int tas256x_dac_event(struct snd_soc_dapm_widget *w,
 			struct snd_kcontrol *kcontrol, int event)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = snd_soc_dapm_to_component(w->dapm);
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -635,9 +635,9 @@ static int tas256x_system_mute_ctrl_get(struct snd_kcontrol *pKcontrol,
 	struct snd_ctl_elem_value *pValue)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec
+	struct snd_soc_component *component
 					= snd_soc_kcontrol_component(pKcontrol);
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(pKcontrol);
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -653,9 +653,9 @@ static int tas256x_system_mute_ctrl_put(struct snd_kcontrol *pKcontrol,
 	struct snd_ctl_elem_value *pValue)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec =
+	struct snd_soc_component *component =
 		snd_soc_kcontrol_component(pKcontrol);
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(pKcontrol);
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -673,9 +673,9 @@ static int tas256x_mute_ctrl_get(struct snd_kcontrol *pKcontrol,
 	struct snd_ctl_elem_value *pValue)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec =
+	struct snd_soc_component *component =
 		snd_soc_kcontrol_component(pKcontrol);
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(pKcontrol);
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -698,9 +698,9 @@ static int tas256x_mute_ctrl_put(struct snd_kcontrol *pKcontrol,
 	struct snd_ctl_elem_value *pValue)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec =
+	struct snd_soc_component *component =
 		snd_soc_kcontrol_component(pKcontrol);
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(pKcontrol);
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -733,9 +733,9 @@ static int tas256x_hw_params(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = dai->component;
+	struct snd_soc_component *component = dai->component;
 	struct tas256x_priv *p_tas256x
-			= snd_soc_component_get_drvdata(codec);
+			= snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = dai->codec;
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -839,8 +839,8 @@ static int tas256x_set_fmt(struct tas256x_priv *p_tas256x,
 static int tas256x_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = dai->component;
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct snd_soc_component *component = dai->component;
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = dai->codec;
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -858,8 +858,8 @@ static int tas256x_set_dai_tdm_slot(struct snd_soc_dai *dai,
 {
 	int ret = 0;
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = dai->component;
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct snd_soc_component *component = dai->component;
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = dai->codec;
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -887,8 +887,8 @@ static int tas256x_set_dai_tdm_slot(struct snd_soc_dai *dai,
 static int tas256x_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = dai->component;
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct snd_soc_component *component = dai->component;
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = dai->codec;
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -932,8 +932,8 @@ static void tas256x_shutdown(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *dai)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec = dai->component;
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct snd_soc_component *component = dai->component;
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = dai->codec;
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -1378,22 +1378,22 @@ static void tas256x_config_info_remove(void* pContext)
 #endif
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-static int tas256x_codec_probe(struct snd_soc_component *codec)
+static int tas256x_codec_probe(struct snd_soc_component *component)
 {
 	int ret, i;
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 
-	ret = snd_soc_add_component_controls(codec, tas256x_controls,
+	ret = snd_soc_add_component_controls(component, tas256x_controls,
 					 ARRAY_SIZE(tas256x_controls));
 	if (ret < 0) {
-		pr_err("%s: add_codec_controls failed, err %d\n",
+		pr_err("%s: snd_soc_add_component_controls failed, err %d\n",
 			__func__, ret);
 		return ret;
 	}
 
 	for (i = 0; i < p_tas256x->mn_channels; i++) {
 		if (p_tas256x->devs[i]->dev_ops.tas_probe)
-			ret |= (p_tas256x->devs[i]->dev_ops.tas_probe)(p_tas256x, codec, i+1);
+			ret |= (p_tas256x->devs[i]->dev_ops.tas_probe)(p_tas256x, component, i+1);
 	}
 
 	ret = tas256x_load_init(p_tas256x);
@@ -1403,7 +1403,7 @@ static int tas256x_codec_probe(struct snd_soc_component *codec)
 	if (ret < 0)
 		goto end;
 #ifdef CONFIG_TAS25XX_ALGO
-	tas_smartamp_add_algo_controls(codec);
+	tas_smartamp_add_algo_controls(component);
 	/*Send IV Vbat format but don't update to algo yet*/
 	tas25xx_set_iv_bit_fomat(p_tas256x->mn_iv_width,
 		p_tas256x->mn_vbat, 0);
@@ -1448,7 +1448,7 @@ static int tas256x_codec_probe(struct snd_soc_codec *codec)
 	if (ret < 0)
 		goto end;
 #ifdef CONFIG_TAS25XX_ALGO
-	tas_smartamp_add_algo_controls(codec);
+	tas_smartamp_add_algo_controls(component);
 	/*Send IV Vbat format but don't update to algo yet*/
 	tas25xx_set_iv_bit_fomat(p_tas256x->mn_iv_width,
 		p_tas256x->mn_vbat, 0);
@@ -1470,10 +1470,10 @@ end:
 #endif
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-static void tas256x_codec_remove(struct snd_soc_component *codec)
+static void tas256x_codec_remove(struct snd_soc_component *component)
 {
 #ifdef CONFIG_TAS256X_BIN_PARSER
-	struct tas2562_priv *pTAS256x = snd_soc_component_get_drvdata(codec);
+	struct tas2562_priv *pTAS256x = snd_soc_component_get_drvdata(component);
 	tas256x_config_info_remove(pTAS256x);
 #endif
 }
@@ -1500,9 +1500,9 @@ static int tas256x_get_icn_switch(struct snd_kcontrol *pKcontrol,
 				struct snd_ctl_elem_value *p_u_control)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec =
+	struct snd_soc_component *component =
 		snd_soc_kcontrol_component(pKcontrol);
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(pKcontrol);
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -1517,9 +1517,9 @@ static int tas256x_set_icn_switch(struct snd_kcontrol *pKcontrol,
 {
 	int ret  = 0;
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec =
+	struct snd_soc_component *component =
 		snd_soc_kcontrol_component(pKcontrol);
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(pKcontrol);
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -1535,9 +1535,9 @@ static int tas256x_dac_mute_ctrl_get(struct snd_kcontrol *pKcontrol,
 	struct snd_ctl_elem_value *pValue)
 {
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	 struct snd_soc_component *codec =
+	 struct snd_soc_component *component =
 		snd_soc_kcontrol_component(pKcontrol);
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
     #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(pKcontrol);
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -1558,9 +1558,9 @@ static int tas256x_dac_mute_ctrl_put(struct snd_kcontrol *pKcontrol,
 	int mute = pValue->value.integer.value[0];
 	int i = 0, chnTemp = 0;
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-	struct snd_soc_component *codec =
+	struct snd_soc_component *component =
 		snd_soc_kcontrol_component(pKcontrol);
-	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(codec);
+	struct tas256x_priv *p_tas256x = snd_soc_component_get_drvdata(component);
 #else
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(pKcontrol);
 	struct tas256x_priv *p_tas256x = snd_soc_codec_get_drvdata(codec);
@@ -1601,7 +1601,7 @@ static const struct snd_kcontrol_new tas256x_snd_controls[] = {
 };
 
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-static const struct snd_soc_component_driver soc_codec_driver_tas256x = {
+static struct snd_soc_component_driver soc_codec_driver_tas256x = {
 	.probe			= tas256x_codec_probe,
 	.remove			= tas256x_codec_remove,
 	.read			= tas256x_codec_read,
@@ -1618,7 +1618,7 @@ static const struct snd_soc_component_driver soc_codec_driver_tas256x = {
 	.num_dapm_routes	= ARRAY_SIZE(tas256x_audio_map_stereo),
 };
 #else
-static struct snd_soc_codec_driver soc_codec_driver_tas256x = {
+static struct snd_soc_component_driver soc_codec_driver_tas256x = {
 	.probe			= tas256x_codec_probe,
 	.remove			= tas256x_codec_remove,
 	.read			= tas256x_codec_read,
