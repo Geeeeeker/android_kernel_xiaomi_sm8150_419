@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
@@ -44,9 +45,9 @@
 #define TX_MACRO_ADC_MUX_CFG_OFFSET 0x8
 #define TX_MACRO_ADC_MODE_CFG0_SHIFT 1
 
-#define TX_MACRO_DMIC_UNMUTE_DELAY_MS	40
+#define TX_MACRO_DMIC_UNMUTE_DELAY_MS	150
 #define TX_MACRO_AMIC_UNMUTE_DELAY_MS	100
-#define TX_MACRO_DMIC_HPF_DELAY_MS	300
+#define TX_MACRO_DMIC_HPF_DELAY_MS	50
 #define TX_MACRO_AMIC_HPF_DELAY_MS	300
 
 static int tx_unmute_delay = TX_MACRO_DMIC_UNMUTE_DELAY_MS;
