@@ -31714,7 +31714,7 @@ static int msm_routing_probe(struct snd_soc_component *component)
 	snd_soc_add_component_controls(
 			component, msm_routing_feature_support_mixer_controls,
 			ARRAY_SIZE(msm_routing_feature_support_mixer_controls));
-	elliptic_add_platform_controls(platform);
+	elliptic_add_component_controls(component);
 	/* for mius start */
 #ifdef CONFIG_US_PROXIMITY
 	mius_add_platform_controls(platform);
@@ -31727,7 +31727,6 @@ static int msm_routing_probe(struct snd_soc_component *component)
 #ifdef SMART_AMP
 	msm_smartamp_add_controls(platform);
 #endif
-	elliptic_add_platform_controls(platform);
 
 	snd_soc_add_component_controls(component, pll_clk_drift_controls,
 				      ARRAY_SIZE(pll_clk_drift_controls));
