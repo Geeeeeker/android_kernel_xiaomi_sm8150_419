@@ -531,7 +531,7 @@ enum channel {
  */
 struct tas_device_ops {
 	int (*tas_init)(struct tas256x_priv *p_tas256x, int chn); /**< init typically for loading optimal settings */
-	int (*tas_probe)(struct tas256x_priv *p_tas256x, struct snd_soc_codec *codec, int chn);
+	int (*tas_probe)(struct tas256x_priv *p_tas256x, struct snd_soc_component *component, int chn);
 	//TODO:
 };
 
