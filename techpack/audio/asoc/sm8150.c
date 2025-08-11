@@ -5255,29 +5255,23 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 		ret = msm_mi2s_set_sclk(substream, true);
 		if (ret < 0) {
 			dev_err(rtd->card->dev,
-				"%s: afe lpass clock failed ",
-				"to enable MI2S clock, err:%d\n",
+				"%s: afe lpass clock failed to enable MI2S clock, err:%d\n",
 				__func__, ret);
 			goto clean_up;
 		}
 
 		ret = snd_soc_dai_set_fmt(cpu_dai, fmt);
 		if (ret < 0) {
-			pr_err("%s: set fmt cpu dai failed for MI2S(%d) err:%d\n",
+			pr_err("%s: set fmt cpu dai failed for MI2S (%d), err:%d\n",
 				__func__, index, ret);
 			goto clk_off;
 		}
 		if (index == QUAT_MI2S) {
 			ret_pinctrl = msm_set_pinctrl(pinctrl_info,
-							STATE_MI2S_ACTIVE);
-			if (ret_pinctrl) {
-				pr_err("%s: MI2S TLMM pinctrl set failed %d",
-					"switching to gpio\n",
+						      STATE_MI2S_ACTIVE);
+			if (ret_pinctrl)
+				pr_err("%s: MI2S TLMM pinctrl set failed with %d\n",
 					__func__, ret_pinctrl);
-				if (pdata->mi2s_gpio_p[index])
-					msm_cdc_pinctrl_select_active_state(
-						pdata->mi2s_gpio_p[index]);
-			}
 		}
 	}
 	snd_soc_codec_set_sysclk(rtd->codec_dai->codec, 0, 0,
@@ -5316,19 +5310,14 @@ static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 	if (--mi2s_intf_conf[index].ref_cnt == 0) {
 		ret = msm_mi2s_set_sclk(substream, false);
 		if (ret < 0)
-			pr_err("%s:clock disable failed for MI2S(%d) ret=%d\n",
+			pr_err("%s:clock disable failed for MI2S (%d); ret=%d\n",
 				__func__, index, ret);
 		if (index == QUAT_MI2S) {
 			ret_pinctrl = msm_set_pinctrl(pinctrl_info,
-							STATE_DISABLE);
-			if (ret_pinctrl) {
-				pr_err("%s: MI2S TLMM pinctrl set failed %d",
-					"switching to gpio\n",
+						      STATE_DISABLE);
+			if (ret_pinctrl)
+				pr_err("%s: MI2S TLMM pinctrl set failed with %d\n",
 					__func__, ret_pinctrl);
-				if (pdata->mi2s_gpio_p[index])
-					msm_cdc_pinctrl_select_sleep_state(
-					pdata->mi2s_gpio_p[index]);
-			}
 		}
 	}
 	mutex_unlock(&mi2s_intf_conf[index].lock);
@@ -6136,38 +6125,7 @@ static struct snd_soc_dai_link msm_common_misc_fe_dai_links[] = {
 		.ignore_pmdown_time = 1,
 		.id = MSM_FRONTEND_DAI_MULTIMEDIA17,
 	},
-
 	{
-		.name = "Quaternary MI2S_RX Hostless Playback",
-		.stream_name = "Quaternary MI2S_RX Hostless Playback",
-		.cpu_dai_name = "QUAT_MI2S_RX_HOSTLESS",
-		.platform_name = "msm-pcm-hostless",
-		.dynamic = 1,
-		.dpcm_playback = 1,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			SND_SOC_DPCM_TRIGGER_POST},
-		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-	},
-	{
-		.name = "Quaternary MI2S_TX Hostless Capture",
-		.stream_name = "Quaternary MI2S_TX Hostless Capture",
-		.cpu_dai_name = "QUAT_MI2S_TX_HOSTLESS",
-		.platform_name = "msm-pcm-hostless",
-		.dynamic = 1,
-		.dpcm_capture = 1,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			SND_SOC_DPCM_TRIGGER_POST},
-		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-	},
-		{
 		.name = "MultiMedia30 Playback",
 		.stream_name = "MultiMedia30",
 		.cpu_dai_name = "MultiMedia30",
@@ -6196,24 +6154,6 @@ static struct snd_soc_dai_link msm_common_misc_fe_dai_links[] = {
 		.ignore_suspend = 1,
 		.ignore_pmdown_time = 1,
 		.id = MSM_FRONTEND_DAI_MULTIMEDIA31,
-	},
-/* Voice Stub */
-	{
-		.name = "Voice Stub",
-		.stream_name = "Voice Stub",
-		.cpu_dai_name = "VOICE_STUB",
-		.platform_name = "msm-pcm-hostless",
-		.dynamic = 1,
-		.dpcm_playback = 1,
-		.dpcm_capture = 1,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-		 SND_SOC_DPCM_TRIGGER_POST},
-		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
-		.ignore_suspend = 1,
-		/* this dainlink has playback support */
-		.ignore_pmdown_time = 1,
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
 	},
 };
 
@@ -7188,11 +7128,6 @@ struct snd_soc_card snd_soc_card_tavil_msm = {
 	.late_probe	= msm_snd_card_tavil_late_probe,
 };
 
-struct snd_soc_card snd_soc_card_hanasdx_msm = {
-	.name		= "sm8150-hana55-snd-card",
-	.late_probe	= msm_snd_card_tavil_late_probe,
-};
-
 static int msm_populate_dai_link_component_of_node(
 					struct snd_soc_card *card)
 {
@@ -7408,8 +7343,6 @@ static const struct of_device_id sm8150_asoc_machine_of_match[]  = {
 	  .data = "tavil_codec"},
 	{ .compatible = "qcom,sm8150-asoc-snd-stub",
 	  .data = "stub_codec"},
-	{ .compatible = "qcom,sm8150-asoc-snd-hana55",
-	  .data = "tavil_codec"},
 	{},
 };
 
@@ -7962,12 +7895,10 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	if (!ret) {
 		pr_debug("%s: pinctrl parsing successful\n", __func__);
 	} else {
-		pr_err("%s: Parsing pinctrl failed %d. switching to gpio\n",
+		dev_dbg(&pdev->dev,
+			"%s: Parsing pinctrl failed with %d. Cannot use Ports\n",
 			__func__, ret);
 		ret = 0;
-		pdata->mi2s_gpio_p[QUAT_MI2S] =
-			of_parse_phandle(pdev->dev.of_node,
-				"qcom,quat-mi2s-gpios", 0);
 	}
 
 	msm_i2s_auxpcm_init(pdev);
