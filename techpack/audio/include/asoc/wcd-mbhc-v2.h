@@ -129,6 +129,9 @@ do {                                                    \
 #define WCD_MBHC_JACK_BUTTON_MASK (SND_JACK_BTN_0 | SND_JACK_BTN_1 | \
 				  SND_JACK_BTN_2 | SND_JACK_BTN_3 | \
 				  SND_JACK_BTN_4 | SND_JACK_BTN_5)
+
+#define WCD_MBHC_JACK_USB_3_5_MASK (SND_JACK_UNSUPPORTED | SND_JACK_HEADSET)
+
 #define OCP_ATTEMPT 20
 #define HS_DETECT_PLUG_TIME_MS (3 * 1000)
 #define SPECIAL_HS_DETECT_TIME_MS (2 * 1000)
@@ -420,9 +423,15 @@ struct usbc_ana_audio_config {
 	int usbc_en1_gpio;
 	int usbc_en2_gpio;
 	int usbc_force_gpio;
+	int euro_us_hw_switch_gpio;
+	int uart_audio_switch_gpio;
+	int subpcb_id_gpio;
 	struct device_node *usbc_en1_gpio_p; /* used by pinctrl API */
 	struct device_node *usbc_en2_gpio_p; /* used by pinctrl API */
 	struct device_node *usbc_force_gpio_p; /* used by pinctrl API */
+	struct device_node *euro_us_hw_switch_gpio_p; /* used by pinctrl API */
+	struct device_node *uart_audio_switch_gpio_p; /* used by pinctrl API */
+	struct device_node *subpcb_id_gpio_p; /* used by pinctrl API */
 };
 
 struct wcd_mbhc_config {
@@ -442,6 +451,9 @@ struct wcd_mbhc_config {
 	u32 enable_usbc_analog;
 	bool usbc_analog_legacy;
 	bool moisture_duty_cycle_en;
+	u32 use_fsa4476_gpio;
+	void (*enable_dual_adc_gpio)(struct device_node *node, bool en);
+	struct device_node *dual_adc_gpio_node;   
 	struct usbc_ana_audio_config usbc_analog_cfg;
 };
 
@@ -532,6 +544,7 @@ struct wcd_mbhc_cb {
 	bool (*mbhc_get_moisture_status)(struct wcd_mbhc *mbhc);
 	void (*mbhc_moisture_polling_ctrl)(struct wcd_mbhc *mbhc, bool enable);
 	void (*mbhc_moisture_detect_en)(struct wcd_mbhc *mbhc, bool enable);
+	void (*mbhc_mute_hs_tx)(struct snd_soc_codec *);
 };
 
 struct wcd_mbhc_fn {
@@ -601,6 +614,7 @@ struct wcd_mbhc {
 
 	struct snd_soc_jack headset_jack;
 	struct snd_soc_jack button_jack;
+	struct snd_soc_jack usb_3_5_jack;
 	struct mutex codec_resource_lock;
 
 	/* Holds codec specific interrupt mapping */
