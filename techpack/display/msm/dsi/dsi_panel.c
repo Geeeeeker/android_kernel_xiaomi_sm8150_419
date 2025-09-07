@@ -23,7 +23,7 @@
 
 #include <drm/drm_notifier.h>
 
-#include "../../../../../kernel/irq/internals.h"
+#include "../../../../kernel/irq/internals.h"
 
 #include "dsi_panel_mi.h"
 
