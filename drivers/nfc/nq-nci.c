@@ -503,6 +503,7 @@ static int sn100_ese_pwr(struct nqx_dev *nqx_dev, unsigned long arg)
 			/*
 			 * Read data as NFC thread is not active
 			 */
+#if 0 // Nothing todo!
 			r = is_data_available_for_read(nqx_dev);
 			if (r <= 0) {
 				nqx_disable_irq(nqx_dev);
@@ -511,6 +512,7 @@ static int sn100_ese_pwr(struct nqx_dev *nqx_dev, unsigned long arg)
 			}
 			read_cold_reset_rsp(nqx_dev, false, NULL);
 			nqx_dev->cold_reset_rsp_pending = false;
+#endif
 		}
 		r = nqx_dev->cold_reset_status;
 	} else if (arg == ESE_POWER_STATE) {
