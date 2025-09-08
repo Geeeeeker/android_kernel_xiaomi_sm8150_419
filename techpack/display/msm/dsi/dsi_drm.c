@@ -251,11 +251,11 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 			DSI_DEBUG("fp_quickon reset to false, returning early from %s\n", __func__);
 			return;
 		} else if (c_bridge->display->panel->panel_mode == DSI_OP_VIDEO_MODE) {
-			DSI_INFO("skip set display config for video panel in fpc\n");
+			DSI_DEBUG("skip set display config for video panel in fpc\n");
 			return;
 		} else if (c_bridge->display->panel->panel_mode == DSI_OP_CMD_MODE &&
 		    c_bridge->dsi_mode.dsi_mode_flags != DSI_MODE_FLAG_DMS) {
-			DSI_INFO("skip set display config because timming not switch for command panel\n");
+			DSI_DEBUG("skip set display config because timming not switch for command panel\n");
 
 		DSI_DEBUG("%s panel already on\n", __func__);
 		return;
