@@ -28,10 +28,7 @@
 
 #define VFE_HW_LIMIT 1
 #define DUAL_ISP_SYNC 1
-
-#ifndef CONFIG_MACH_XIAOMI
 #define ISP_KERNEL_STATE 1
-#endif
 
 struct msm_vfe_cfg_cmd_list;
 

@@ -234,6 +234,28 @@ int cam_context_handle_crm_process_evt(struct cam_context *ctx,
 	return rc;
 }
 
+int cam_context_handle_crm_dump_req(struct cam_context *ctx,
+	struct cam_req_mgr_dump_info *dump)
+{
+	int rc = 0;
+
+	if (!ctx->state_machine) {
+		CAM_ERR(CAM_CORE, "Context is not ready");
+		return -EINVAL;
+	}
+	mutex_lock(&ctx->ctx_mutex);
+	if (ctx->state_machine[ctx->state].crm_ops.dump_req) {
+		rc = ctx->state_machine[ctx->state].crm_ops.dump_req(ctx,
+			dump);
+	} else {
+		CAM_ERR(CAM_CORE, "No crm dump req in dev %d, state %d",
+			ctx->dev_hdl, ctx->state);
+	}
+	mutex_unlock(&ctx->ctx_mutex);
+
+	return rc;
+}
+
 int cam_context_dump_pf_info(struct cam_context *ctx, unsigned long iova,
 	uint32_t buf_info)
 {
@@ -502,6 +524,33 @@ int cam_context_handle_stop_dev(struct cam_context *ctx,
 	return rc;
 }
 
+int cam_context_handle_dump_dev(struct cam_context *ctx,
+	struct cam_dump_req_cmd *cmd)
+{
+	int rc = 0;
+
+	if (!ctx || !ctx->state_machine) {
+		CAM_ERR(CAM_CORE, "Context is not ready");
+		return -EINVAL;
+	}
+
+	if (!cmd) {
+		CAM_ERR(CAM_CORE, "Invalid stop device command payload");
+		return -EINVAL;
+	}
+
+	mutex_lock(&ctx->ctx_mutex);
+	if (ctx->state_machine[ctx->state].ioctl_ops.dump_dev)
+		rc = ctx->state_machine[ctx->state].ioctl_ops.dump_dev(
+			ctx, cmd);
+	else
+		CAM_WARN(CAM_CORE, "No dump device in dev %d, name %s state %d",
+			ctx->dev_hdl, ctx->dev_name, ctx->state);
+	mutex_unlock(&ctx->ctx_mutex);
+
+	return rc;
+}
+
 int cam_context_init(struct cam_context *ctx,
 	const char *dev_name,
 	uint64_t dev_id,
@@ -528,7 +577,7 @@ int cam_context_init(struct cam_context *ctx,
 	mutex_init(&ctx->sync_mutex);
 	spin_lock_init(&ctx->lock);
 
-	ctx->dev_name = dev_name;
+	strlcpy(ctx->dev_name, dev_name, CAM_CTX_DEV_NAME_MAX_LENGTH);
 	ctx->dev_id = dev_id;
 	ctx->ctx_id = ctx_id;
 	ctx->last_flush_req = 0;
@@ -575,7 +624,12 @@ int cam_context_deinit(struct cam_context *ctx)
 
 void cam_context_putref(struct cam_context *ctx)
 {
-	kref_put(&ctx->refcount, cam_node_put_ctxt_to_free_list);
+	if (kref_read(&ctx->refcount))
+		kref_put(&ctx->refcount, cam_node_put_ctxt_to_free_list);
+	else
+		WARN(1, "ctx %s %d state %d devhdl %X\n", ctx->dev_name,
+			ctx->ctx_id, ctx->state, ctx->dev_hdl);
+
 	CAM_DBG(CAM_CORE,
 		"ctx device hdl %ld, ref count %d, dev_name %s",
 		ctx->dev_hdl, refcount_read(&(ctx->refcount.refcount)),
