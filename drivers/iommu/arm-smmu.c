@@ -262,15 +262,12 @@ struct arm_smmu_device {
 #define ARM_SMMU_OPT_SECURE_CFG_ACCESS (1 << 0)
 #define ARM_SMMU_OPT_FATAL_ASF		(1 << 1)
 #define ARM_SMMU_OPT_SKIP_INIT		(1 << 2)
-#define ARM_SMMU_OPT_DYNAMIC		(1 << 3)
 #define ARM_SMMU_OPT_3LVL_TABLES	(1 << 4)
 #define ARM_SMMU_OPT_NO_ASID_RETENTION	(1 << 5)
 #define ARM_SMMU_OPT_STATIC_CB		(1 << 6)
 #define ARM_SMMU_OPT_DISABLE_ATOS	(1 << 7)
 #define ARM_SMMU_OPT_NO_DYNAMIC_ASID	(1 << 8)
 #define ARM_SMMU_OPT_HALT		(1 << 9)
-#define ARM_SMMU_OPT_MIN_IOVA_ALIGN	(1 << 10)
-
 	u32				options;
 	enum arm_smmu_arch_version	version;
 	enum arm_smmu_implementation	model;
@@ -404,7 +401,6 @@ struct arm_smmu_domain {
 	struct list_head		nonsecure_pool;
 	struct iommu_debug_attachment	*logger;
 	struct iommu_domain		domain;
-	bool				qsmmuv500_errata1_min_iova_align;
 };
 
 struct arm_smmu_option_prop {
@@ -453,12 +449,10 @@ static struct arm_smmu_option_prop arm_smmu_options[] = {
 	{ ARM_SMMU_OPT_SECURE_CFG_ACCESS, "calxeda,smmu-secure-config-access" },
 	{ ARM_SMMU_OPT_FATAL_ASF, "qcom,fatal-asf" },
 	{ ARM_SMMU_OPT_SKIP_INIT, "qcom,skip-init" },
-	{ ARM_SMMU_OPT_DYNAMIC, "qcom,dynamic" },
 	{ ARM_SMMU_OPT_3LVL_TABLES, "qcom,use-3-lvl-tables" },
 	{ ARM_SMMU_OPT_NO_ASID_RETENTION, "qcom,no-asid-retention" },
 	{ ARM_SMMU_OPT_STATIC_CB, "qcom,enable-static-cb"},
 	{ ARM_SMMU_OPT_DISABLE_ATOS, "qcom,disable-atos" },
-	{ ARM_SMMU_OPT_MIN_IOVA_ALIGN, "qcom,min-iova-align" },
 	{ ARM_SMMU_OPT_NO_DYNAMIC_ASID, "qcom,no-dynamic-asid" },
 	{ ARM_SMMU_OPT_HALT, "qcom,enable-smmu-halt"},
 	{ 0, NULL},
@@ -2492,13 +2486,6 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 	}
 
 	dynamic = is_dynamic_domain(domain);
-	if (dynamic && !(smmu->options & ARM_SMMU_OPT_DYNAMIC)) {
-		dev_err(smmu->dev, "dynamic domains not supported\n");
-		ret = -EPERM;
-
-		goto out_unlock;
-	}
-
 	/*
 	 * Mapping the requested stage onto what we support is surprisingly
 	 * complicated, mainly because the spec allows S1+S2 SMMUs without
@@ -4271,10 +4258,6 @@ static int arm_smmu_domain_get_attr(struct iommu_domain *domain,
 			& (1 << DOMAIN_ATTR_PAGE_TABLE_FORCE_COHERENT));
 		ret = 0;
 		break;
-	case DOMAIN_ATTR_QCOM_MMU500_ERRATA_MIN_IOVA_ALIGN:
-		*((int *)data) = smmu_domain->qsmmuv500_errata1_min_iova_align;
-		ret = 0;
-		break;
 	case DOMAIN_ATTR_FAULT_MODEL_NO_CFRE:
 	case DOMAIN_ATTR_FAULT_MODEL_NO_STALL:
 	case DOMAIN_ATTR_FAULT_MODEL_HUPCF:
@@ -6019,9 +6002,6 @@ module_exit(arm_smmu_exit);
 
 #define TBU_DBG_TIMEOUT_US		100
 
-#define QSMMUV500_ACTLR_DEEP_PREFETCH_MASK	0x3
-#define QSMMUV500_ACTLR_DEEP_PREFETCH_SHIFT	0x8
-
 struct qsmmuv500_group_iommudata {
 	bool has_actlr;
 	u32 actlr;
@@ -6453,15 +6433,6 @@ static void qsmmuv500_init_cb(struct arm_smmu_domain *smmu_domain,
 	cb_base = ARM_SMMU_CB(smmu, smmu_domain->cfg.cbndx);
 
 	writel_relaxed(iommudata->actlr, cb_base + ARM_SMMU_CB_ACTLR);
-
-	/*
-	 * Prefetch only works properly if the start and end of all
-	 * buffers in the page table are aligned to ARM_SMMU_MIN_IOVA_ALIGN.
-	 */
-	if (((iommudata->actlr >> QSMMUV500_ACTLR_DEEP_PREFETCH_SHIFT) &
-			QSMMUV500_ACTLR_DEEP_PREFETCH_MASK) &&
-				  (smmu->options & ARM_SMMU_OPT_MIN_IOVA_ALIGN))
-		smmu_domain->qsmmuv500_errata1_min_iova_align = true;
 
 	/*
 	 * Flush the context bank after modifying ACTLR to ensure there
