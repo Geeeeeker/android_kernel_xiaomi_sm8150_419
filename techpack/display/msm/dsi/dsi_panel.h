@@ -175,6 +175,14 @@ struct drm_panel_esd_config {
 	int esd_err_irq_gpio;
 };
 
+struct dsi_read_config {
+	bool enabled;
+	struct dsi_panel_cmd_set read_cmd;
+	u32 cmds_rlen;
+	u32 valid_bits;
+	u8 rbuf[64];
+};
+
 struct dsi_panel {
 	const char *name;
 	const char *type;
@@ -348,5 +356,9 @@ void dsi_panel_ext_bridge_put(struct dsi_panel *panel);
 
 void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
 		struct dsi_display_mode *mode, u32 frame_threshold_us);
+
+int dsi_panel_write_cmd_set(struct dsi_panel *panel, struct dsi_panel_cmd_set *cmd_sets);
+
+int dsi_panel_read_cmd_set(struct dsi_panel *panel, struct dsi_read_config *read_config);
 
 #endif /* _DSI_PANEL_H_ */
