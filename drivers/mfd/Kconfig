@@ -1890,6 +1890,11 @@ config MCP_UCB1200_TS
 	tristate "Touchscreen interface support"
 	depends on MCP_UCB1200 && INPUT
 
+config MFD_SPK_ID
+	bool "Versatile Express System Registers"
+	help
+	  Xiaomi speaker ID driver.
+
 endmenu
 
 config MFD_VEXPRESS_SYSREG
