@@ -6016,7 +6016,6 @@ static struct snd_soc_dai_link msm_common_be_dai_links[] = {
 		.ignore_pmdown_time = 1,
 		.ignore_suspend = 1,
 	},
-#if !(defined(CONFIG_MACH_XIAOMI_VAYU) || defined(CONFIG_MACH_XIAOMI_NABU))
 	{
 		.name = LPASS_BE_AFE_PCM_TX,
 		.stream_name = "AFE Capture",
