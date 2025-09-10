@@ -1953,9 +1953,9 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 	struct snd_soc_component *component;
 	struct snd_soc_card *card;
 	const char *usb_c_dt = "qcom,msm-mbhc-usbc-audio-supported";
-#ifdef CONFIG_MACH_XIAOMI_SM8150
 	const char *fsa4476_dt = "qcom,fsa4476-gpio-support";
-#endif
+	struct usbc_ana_audio_config *config =
+					&mbhc_cfg->usbc_analog_cfg;
 
 	if (!mbhc || !mbhc_cfg)
 		return -EINVAL;
@@ -1987,21 +1987,8 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 		dev_dbg(mbhc->component->dev, "%s: usbc analog enabled\n",
 				__func__);
 		mbhc->swap_thr = GND_MIC_USBC_SWAP_THRESHOLD;
-#ifndef CONFIG_MACH_XIAOMI_SM8150
-		mbhc->fsa_np = of_parse_phandle(card->dev->of_node,
-				"fsa4480-i2c-handle", 0);
-		if (!mbhc->fsa_np) {
-			dev_err(card->dev, "%s: fsa4480 i2c node not found, "
-				"trying legacy Type-C analog audio\n",
-				__func__);
-
-			mbhc_cfg->usbc_analog_legacy = true;
-			/* goto err; */
-		}
-#endif
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_SM8150
 		mbhc_cfg->use_fsa4476_gpio = 0;
 		if (of_find_property(card->dev->of_node, fsa4476_dt, NULL)) {
 			rc = of_property_read_u32(card->dev->of_node, fsa4476_dt,
@@ -2014,30 +2001,12 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 		}
 
 	if (mbhc_cfg->use_fsa4476_gpio != 0) {
-#else
-	if (mbhc_cfg->enable_usbc_analog && mbhc_cfg->usbc_analog_legacy) {
-		struct usbc_ana_audio_config *config =
-						&mbhc_cfg->usbc_analog_cfg;
-#endif
 		rc = wcd_mbhc_init_gpio(mbhc, mbhc_cfg,
 				"qcom,usbc-analog-en1-gpio",
 				&config->usbc_en1_gpio,
 				&config->usbc_en1_gpio_p);
 		if (rc)
 			goto err;
-
-#ifndef CONFIG_MACH_XIAOMI_SM8150
-		if (of_find_property(card->dev->of_node,
-				     "qcom,usbc-analog-force_detect_gpio",
-				     NULL)) {
-			rc = wcd_mbhc_init_gpio(mbhc, mbhc_cfg,
-					"qcom,usbc-analog-force_detect_gpio",
-					&config->usbc_force_gpio,
-					&config->usbc_force_gpio_p);
-			if (rc)
-				goto err;
-		}
-#endif
 
 		dev_dbg(component->dev, "%s: calling usb_c_analog_init\n",
 			__func__);
@@ -2047,7 +2016,7 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 			rc = -EPROBE_DEFER;
 			goto err;
 		}
-#ifdef CONFIG_MACH_XIAOMI_SM8150
+
 		} else {
 			mbhc->fsa_np = of_parse_phandle(card->dev->of_node,
 					"fsa4480-i2c-handle", 0);
@@ -2057,7 +2026,7 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 				rc = -EINVAL;
 				goto err;
 			} // git
-#endif
+
 	}
 
 	/* Set btn key code */
@@ -2082,22 +2051,17 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 				 __func__, mbhc->mbhc_fw, mbhc->mbhc_cal);
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_SM8150
 	if (mbhc_cfg->enable_usbc_analog) {
 		if (mbhc_cfg->use_fsa4476_gpio == 0) {
-#else
-	if (mbhc_cfg->enable_usbc_analog && !mbhc_cfg->usbc_analog_legacy) {
-#endif
 		mbhc->fsa_nb.notifier_call = wcd_mbhc_usbc_ana_event_handler;
 		mbhc->fsa_nb.priority = 0;
 		rc = fsa4480_reg_notifier(&mbhc->fsa_nb, mbhc->fsa_np);
-#ifdef CONFIG_MACH_XIAOMI_SM8150
 		} else {
 			mbhc->psy_nb.notifier_call = wcd_mbhc_usb_c_event_changed;
 			mbhc->psy_nb.priority = 0;
 			rc = power_supply_reg_notifier(&mbhc->psy_nb);
 			if (rc) {
-				dev_err(codec->dev, "%s: power supply registration failed\n",
+				dev_err(component->dev, "%s: power supply registration failed\n",
 					__func__);
 				goto err;
 			}
@@ -2106,7 +2070,7 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 			 * as part of the init sequence check if there is a connected
 			 * USB C analog adapter
 			 */
-			dev_dbg(mbhc->codec->dev, "%s: verify if USB adapter is already inserted\n",
+			dev_dbg(mbhc->component->dev, "%s: verify if USB adapter is already inserted\n",
 				__func__);
 			rc = wcd_mbhc_usb_c_event_changed(&mbhc->psy_nb,
 							   PSY_EVENT_PROP_CHANGED,
@@ -2121,13 +2085,10 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 					__func__);
 			goto err;
 		} // git
-#endif
-#ifndef CONFIG_MACH_XIAOMI_SM8150
 	}
-#endif
 	return rc;
+
 err:
-#ifdef CONFIG_MACH_XIAOMI_SM8150
 	if (config->usbc_en1_gpio > 0) {
 		dev_dbg(card->dev, "%s free usb en1 gpio %d\n",
 			__func__, config->usbc_en1_gpio);
@@ -2138,7 +2099,6 @@ err:
 		of_node_put(config->usbc_en1_gpio_p);
 	if (config->usbc_force_gpio_p)
 		of_node_put(config->usbc_force_gpio_p);
-#endif
 	dev_dbg(mbhc->component->dev, "%s: leave %d\n", __func__, rc);
 	return rc;
 }
@@ -2146,6 +2106,9 @@ EXPORT_SYMBOL(wcd_mbhc_start);
 
 void wcd_mbhc_stop(struct wcd_mbhc *mbhc)
 {
+	struct usbc_ana_audio_config *config =
+			&mbhc->mbhc_cfg->usbc_analog_cfg;
+
 	pr_debug("%s: enter\n", __func__);
 
 	if (mbhc->current_plug != MBHC_PLUG_TYPE_NONE) {
@@ -2171,14 +2134,7 @@ void wcd_mbhc_stop(struct wcd_mbhc *mbhc)
 	}
 
 	if (mbhc->mbhc_cfg->enable_usbc_analog) {
-#ifdef CONFIG_MACH_XIAOMI_SM8150
 		if (mbhc->mbhc_cfg->use_fsa4476_gpio == 0) {
-#else
-		if (mbhc->mbhc_cfg->usbc_analog_legacy) {
-			struct usbc_ana_audio_config *config =
-					&mbhc->mbhc_cfg->usbc_analog_cfg;
-#endif
-
 			wcd_mbhc_usb_c_analog_deinit(mbhc);
 			/* free GPIOs */
 			if (config->usbc_en1_gpio > 0)
@@ -2188,22 +2144,13 @@ void wcd_mbhc_stop(struct wcd_mbhc *mbhc)
 
 			if (config->usbc_en1_gpio_p)
 				of_node_put(config->usbc_en1_gpio_p);
-#ifndef CONFIG_MACH_XIAOMI_SM8150
-			if (config->usbc_force_gpio_p)
-				of_node_put(config->usbc_force_gpio_p);
-#endif
 		} else {
 			fsa4480_unreg_notifier(&mbhc->fsa_nb, mbhc->fsa_np);
-#ifdef CONFIG_MACH_XIAOMI_SM8150
 		}
-#endif
-#ifdef CONFIG_MACH_XIAOMI_SM8150
 	} else {
 		if (mbhc->fsa_nb.notifier_call != NULL)
 			power_supply_unreg_notifier(&mbhc->fsa_nb);
-#endif
 		}
-	}
 
 	pr_debug("%s: leave\n", __func__);
 }
@@ -2342,7 +2289,7 @@ int wcd_mbhc_init(struct wcd_mbhc *mbhc, struct snd_soc_component *component,
 		}
 
 #ifdef CONFIG_MACH_XIAOMI_SM8150
-		ret = snd_soc_card_jack_new(codec->component.card,
+		ret = snd_soc_card_jack_new(component->card,
 					    "USB_3_5 Jack", WCD_MBHC_JACK_USB_3_5_MASK,
 					    &mbhc->usb_3_5_jack, NULL, 0);
 		if (ret) {
