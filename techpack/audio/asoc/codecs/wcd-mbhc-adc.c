@@ -23,6 +23,9 @@
 #include <asoc/wcd-mbhc-v2.h>
 #include <asoc/pdata.h>
 
+#undef pr_debug
+#define pr_debug pr_info
+
 #if defined(CONFIG_MACH_XIAOMI_VAYU) || defined(CONFIG_MACH_XIAOMI_NABU)
 #define WCD_MBHC_ADC_HS_THRESHOLD_MV    2600
 #define WCD_MBHC_ADC_HPH_THRESHOLD_MV   50
