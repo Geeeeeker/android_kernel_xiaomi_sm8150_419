@@ -31,6 +31,9 @@
 
 #include "clk.h"
 
+#undef pr_debug
+#define pr_debug pr_info
+
 static DEFINE_SPINLOCK(enable_lock);
 static DEFINE_MUTEX(prepare_lock);
 
@@ -684,7 +687,7 @@ static int clk_update_vdd(struct clk_vdd_class *vdd_class)
 	new_base = level * n_reg;
 
 	for (i = 0; i < vdd_class->num_regulators; i++) {
-		pr_debug("Set Voltage level Min %d, Max %d\n", uv[new_base + i],
+		pr_info("Set Voltage level Min %d, Max %d\n", uv[new_base + i],
 				uv[max_lvl + i]);
 		rc = regulator_set_voltage(r[i], uv[new_base + i], INT_MAX);
 		if (rc)
@@ -838,7 +841,7 @@ static int clk_vdd_class_init(struct clk_vdd_class *vdd)
 	}
 
 	if (!vdd_class_handoff_completed) {
-		pr_debug("voting for vdd_class %s\n", vdd->class_name);
+		pr_info("voting for vdd_class %s\n", vdd->class_name);
 
 		ret = clk_vote_vdd_level(vdd, vdd->num_levels - 1);
 		if (ret) {
@@ -1566,23 +1569,66 @@ static bool clk_core_can_round(struct clk_core * const core)
 static int clk_core_round_rate_nolock(struct clk_core *core,
 				      struct clk_rate_request *req)
 {
+	struct clk_core *parent;
+	long rate;
+	int ret;
+
 	lockdep_assert_held(&prepare_lock);
 
 	if (!core) {
-		req->rate = 0;
+		pr_err("clk_core_round_rate_nolock: core is NULL\n");
 		return 0;
 	}
+// SHUTUP:
+	//pr_debug("clk_core_round_rate_nolock: core=%s, requested rate=%lu\n",
+		//	core->name, req->rate);
 
-	clk_core_init_rate_req(core, req);
+	parent = core->parent;
+	if (parent) {
+		req->best_parent_hw = parent->hw;
+		req->best_parent_rate = parent->rate;
+		//pr_debug("core %s has parent %s with rate %lu\n",
+				//core->name, parent->name, parent->rate);
+	} else {
+		req->best_parent_hw = NULL;
+		req->best_parent_rate = 0;
+		pr_debug("core %s has no parent\n", core->name);
+	}
 
-	if (clk_core_can_round(core))
-		return clk_core_determine_round_nolock(core, req);
-	else if (core->flags & CLK_SET_RATE_PARENT)
-		return clk_core_round_rate_nolock(core->parent, req);
+	if (core->ops->determine_rate) {
+		pr_debug("core %s uses determine_rate callback\n", core->name);
+		ret = core->ops->determine_rate(core->hw, req);
+		pr_debug("determine_rate returned %d, rate set to %lu\n", ret, req->rate);
+		return ret;
+	} else if (core->ops->round_rate) {
+		//pr_debug("core %s uses round_rate callback, input rate %lu, best_parent_rate %lu\n",
+			//	core->name, req->rate, req->best_parent_rate);
+		rate = core->ops->round_rate(core->hw, req->rate,
+					     &req->best_parent_rate);
+		if (rate < 0) {
+			pr_err("round_rate callback failed for core %s, rate %lu\n",
+					core->name, req->rate);
+			return (int)rate;
+		}
 
-	req->rate = core->rate;
+		req->rate = rate;
+//		pr_debug("round_rate callback returned %ld for core %s\n",
+			//	rate, core->name);
+	} else if (core->flags & CLK_SET_RATE_PARENT) {
+		pr_debug("core %s has CLK_SET_RATE_PARENT flag, recursing to parent\n", core->name);
+		return clk_core_round_rate_nolock(parent, req);
+	} else {
+		pr_debug("No round_rate or determine_rate callbacks, using core->rate %lu\n",
+				core->rate);
+		req->rate = core->rate;
+	}
+
+//	pr_debug("clk_core_round_rate_nolock: final rate for core %s is %lu\n",
+	//		core->name, req->rate);
+
 	return 0;
 }
+
 
 /**
  * __clk_determine_rate - get the closest rate actually supported by a clock
@@ -1607,16 +1653,30 @@ unsigned long clk_hw_round_rate(struct clk_hw *hw, unsigned long rate)
 	int ret;
 	struct clk_rate_request req;
 
+	if (!hw || !hw->core) {
+		pr_err("clk_hw_round_rate: Invalid hw or hw->core\n");
+		return 0;
+	}
+
 	clk_core_get_boundaries(hw->core, &req.min_rate, &req.max_rate);
+// SHUTUP:
+	//pr_info("clk_hw_round_rate: core=%s, input rate=%lu, min_rate=%lu, max_rate=%lu\n",
+		//	hw->core->name, rate, req.min_rate, req.max_rate);
+
 	req.rate = rate;
 
 	ret = clk_core_round_rate_nolock(hw->core, &req);
-	if (ret)
+	if (ret) {
+		pr_err("clk_hw_round_rate: clk_core_round_rate_nolock failed for core=%s, input rate=%lu\n",
+				hw->core->name, rate);
 		return 0;
-
+	}
+// SHUTUP:
+//	pr_info("clk_hw_round_rate: core=%s, rounded rate=%lu\n", hw->core->name, req.rate);
 	return req.rate;
 }
 EXPORT_SYMBOL_GPL(clk_hw_round_rate);
+
 
 /**
  * clk_round_rate - round the given rate for a clk
@@ -2045,7 +2105,7 @@ static int __clk_speculate_rates(struct clk_core *core,
 		ret = __clk_notify(core, PRE_RATE_CHANGE, core->rate, new_rate);
 
 	if (ret & NOTIFY_STOP_MASK) {
-		pr_debug("%s: clk notifier callback for clock %s aborted with error %d\n",
+		pr_info("%s: clk notifier callback for clock %s aborted with error %d\n",
 				__func__, core->name, ret);
 		goto out;
 	}
@@ -2191,7 +2251,7 @@ static struct clk_core *clk_calc_new_rates(struct clk_core *core,
 	/* some clocks must be gated to change parent */
 	if (parent != old_parent &&
 	    (core->flags & CLK_SET_PARENT_GATE) && core->prepare_count) {
-		pr_debug("%s: %s not gated but wants to reparent\n",
+		pr_info("%s: %s not gated but wants to reparent\n",
 			 __func__, core->name);
 		return NULL;
 	}
@@ -2200,7 +2260,7 @@ static struct clk_core *clk_calc_new_rates(struct clk_core *core,
 	if (parent && core->num_parents > 1) {
 		p_index = clk_fetch_parent_index(core, parent);
 		if (p_index < 0) {
-			pr_debug("%s: clk %s can not be parent of clk %s\n",
+			pr_info("%s: clk %s can not be parent of clk %s\n",
 				 __func__, parent->name, core->name);
 			return NULL;
 		}
@@ -2515,7 +2575,7 @@ static int clk_core_set_rate_nolock(struct clk_core *core,
 	/* notify that we are about to change rates */
 	fail_clk = clk_propagate_rate_change(top, PRE_RATE_CHANGE);
 	if (fail_clk) {
-		pr_debug("%s: failed to set %s clock to run at %lu\n", __func__,
+		pr_info("%s: failed to set %s clock to run at %lu\n", __func__,
 				fail_clk->name, req_rate);
 		clk_propagate_rate_change(top, ABORT_RATE_CHANGE);
 		ret = -EBUSY;
@@ -2869,7 +2929,7 @@ static int clk_core_set_parent_nolock(struct clk_core *core,
 	if (parent) {
 		p_index = clk_fetch_parent_index(core, parent);
 		if (p_index < 0) {
-			pr_debug("%s: clk %s can not be parent of clk %s\n",
+			pr_info("%s: clk %s can not be parent of clk %s\n",
 					__func__, parent->name, core->name);
 			return p_index;
 		}
@@ -4093,7 +4153,7 @@ static int __clk_core_init(struct clk_core *core)
 
 	/* check to see if a clock with this name is already registered */
 	if (clk_core_lookup(core->name)) {
-		pr_debug("%s: clk %s already initialized\n",
+		pr_info("%s: clk %s already initialized\n",
 				__func__, core->name);
 		ret = -EEXIST;
 		goto out;
@@ -4685,6 +4745,7 @@ static int clk_add_and_print_opp(struct clk_hw *hw,
 				unsigned long rate, int uv, int n)
 {
 	struct clk_core *core = hw->core;
+	unsigned long rrate;
 	int j, ret = 0;
 
 	for (j = 0; j < count; j++) {
@@ -4695,8 +4756,11 @@ static int clk_add_and_print_opp(struct clk_hw *hw,
 			return ret;
 		}
 
-		if (n == 0 || n == core->num_rate_max - 1 ||
-					rate == clk_hw_round_rate(hw, INT_MAX))
+		clk_prepare_lock();
+		rrate = clk_hw_round_rate(hw, INT_MAX);
+		clk_prepare_unlock();
+
+		if (n == 0 || n == core->num_rate_max - 1 || rate == rrate)
 			pr_info("%s: set OPP pair(%lu Hz: %u uV) on %s\n",
 						core->name, rate, uv,
 						dev_name(device_list[j]));
@@ -4713,8 +4777,11 @@ static void clk_populate_clock_opp_table(struct device_node *np,
 	int n, len, count, uv, ret;
 	unsigned long rate = 0, rrate = 0;
 
-	if (!core || !core->num_rate_max)
+	if (!core || !core->num_rate_max) {
+		pr_info("No core or num_rate_max is zero for clk %s\n",
+				core ? core->name : "NULL");
 		return;
+	}
 
 	if (strlen(core->name) + LEN_OPP_HANDLE < MAX_LEN_OPP_HANDLE) {
 		ret = snprintf(clk_handle_name, ARRAY_SIZE(clk_handle_name),
@@ -4730,13 +4797,22 @@ static void clk_populate_clock_opp_table(struct device_node *np,
 		return;
 	}
 
+	pr_info("Looking for property '%s' in node %s\n",
+			clk_handle_name, np->name);
+
 	if (of_find_property(np, clk_handle_name, &len)) {
-		count = len/sizeof(u32);
+		count = len / sizeof(u32);
+
+		pr_info("Found %d devices for opp handle %s\n", count,
+				clk_handle_name);
 
 		device_list = kmalloc_array(count, sizeof(struct device *),
 							GFP_KERNEL);
-		if (!device_list)
+		if (!device_list) {
+			pr_err("Failed to allocate device_list for %s\n",
+					clk_handle_name);
 			return;
+		}
 
 		ret = derive_device_list(device_list, core, np,
 					clk_handle_name, count);
@@ -4746,40 +4822,56 @@ static void clk_populate_clock_opp_table(struct device_node *np,
 			goto err_derive_device_list;
 		}
 	} else {
-		pr_debug("Unable to find %s\n", clk_handle_name);
+		pr_info("Unable to find %s property in device tree\n",
+				clk_handle_name);
 		return;
 	}
 
+	pr_info("Starting to populate OPP table for clk %s\n", core->name);
+
 	for (n = 0; ; n++) {
 		rrate = clk_hw_round_rate(hw, rate + 1);
+		pr_info("clk_hw_round_rate called with input %lu, returned %lu\n",
+				rate + 1, rrate);
+
 		if (!rrate) {
-			pr_err("clk_round_rate failed for %s\n",
-							core->name);
+			pr_err("clk_round_rate failed for %s at iteration %d\n",
+							core->name, n);
 			goto err_derive_device_list;
 		}
 
-		/*
-		 * If clk_hw_round_rate gives the same value on consecutive
-		 * iterations, exit the loop since we're at the maximum clock
-		 * frequency.
-		 */
-		if (rate == rrate)
+		if (rate == rrate) {
+			pr_info("Reached max rate %lu for clk %s\n",
+					rate, core->name);
 			break;
+		}
 		rate = rrate;
 
 		uv = clk_get_voltage(core, rate, n);
-		if (uv < 0)
+		if (uv < 0) {
+			pr_err("clk_get_voltage failed for %s at rate %lu\n",
+					core->name, rate);
 			goto err_derive_device_list;
+		}
 
 		ret = clk_add_and_print_opp(hw, device_list, count,
 							rate, uv, n);
-		if (ret)
+		if (ret) {
+			pr_err("clk_add_and_print_opp failed for %s at rate %lu\n",
+					core->name, rate);
 			goto err_derive_device_list;
+		}
+
+		pr_info("Added OPP pair: rate=%lu, voltage=%d for clk %s\n",
+				rate, uv, core->name);
 	}
+
+	pr_info("Completed OPP table population for clk %s\n", core->name);
 
 err_derive_device_list:
 	kfree(device_list);
 }
+
 
 /**
  * devm_clk_register - resource managed clk_register()
@@ -5137,7 +5229,7 @@ int of_clk_add_provider(struct device_node *np,
 	mutex_lock(&of_clk_mutex);
 	list_add(&cp->link, &of_clk_providers);
 	mutex_unlock(&of_clk_mutex);
-	pr_debug("Added clock from %pOF\n", np);
+	pr_info("Added clock from %pOF\n", np);
 
 	ret = of_clk_set_defaults(np, true);
 	if (ret < 0)
@@ -5172,7 +5264,7 @@ int of_clk_add_hw_provider(struct device_node *np,
 	mutex_lock(&of_clk_mutex);
 	list_add(&cp->link, &of_clk_providers);
 	mutex_unlock(&of_clk_mutex);
-	pr_debug("Added clk_hw provider from %pOF\n", np);
+	pr_info("Added clk_hw provider from %pOF\n", np);
 
 	ret = of_clk_set_defaults(np, true);
 	if (ret < 0)
