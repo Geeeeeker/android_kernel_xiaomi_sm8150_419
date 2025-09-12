@@ -18,6 +18,8 @@
 #include "sde_crtc.h"
 #include "sde_rm.h"
 #include "dsi_panel.h"
+#include "sde_trace.h"
+#include <drm/drm_notifier.h>
 
 #define BL_NODE_NAME_SIZE 32
 #define HDR10_PLUS_VSIF_TYPE_CODE      0x81

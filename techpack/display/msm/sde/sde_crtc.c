@@ -4976,76 +4976,6 @@ static int _sde_crtc_check_zpos(struct drm_crtc_state *state,
 	return rc;
 }
 
-static int _sde_crtc_atomic_check_pstates(struct drm_crtc *crtc,
-		struct drm_crtc_state *state,
-		struct plane_state *pstates,
-		struct sde_multirect_plane_states *multirect_plane)
-{
-	struct sde_crtc *sde_crtc;
-	struct sde_crtc_state *cstate;
-	struct sde_kms *kms;
-	struct drm_plane *plane;
-	struct drm_display_mode *mode;
-	int rc = 0, cnt = 0;
-
-	kms = _sde_crtc_get_kms(crtc);
-
-	if (!kms || !kms->catalog) {
-		SDE_ERROR("invalid parameters\n");
-		return -EINVAL;
-	}
-
-	sde_crtc = to_sde_crtc(crtc);
-	cstate = to_sde_crtc_state(state);
-	mode = &state->adjusted_mode;
-
-	/* get plane state for all drm planes associated with crtc state */
-	rc = _sde_crtc_check_get_pstates(crtc, state, mode, pstates,
-			plane, multirect_plane, &cnt);
-	if (rc)
-		return rc;
-	
-	/*
-	 * mi layer check
-	 *	 need execute only sde_enc->disp_info.is_primary is true
-	*/
-
-	rc = sde_crtc_fod_atomic_check(cstate, pstates, cnt);
-	if (rc)
-		goto end;
-
-	/* assign mixer stages based on sorted zpos property */
-	rc = _sde_crtc_check_zpos(state, sde_crtc, pstates, cstate, mode, cnt);
-	if (rc)
-		return rc;
-
-	rc = _sde_crtc_check_secure_state(crtc, state, pstates, cnt);
-	if (rc)
-		return rc;
-
-	/*
-	 * validate and set source split:
-	 * use pstates sorted by stage to check planes on same stage
-	 * we assume that all pipes are in source split so its valid to compare
-	 * without taking into account left/right mixer placement
-	 */
-	rc = _sde_crtc_validate_src_split_order(crtc, pstates, cnt);
-	if (rc)
-		return rc;
-
-	return 0;
-}
-
-bool sde_crtc_get_dim_layer_status(struct drm_crtc_state *crtc_state)
-{
-	struct sde_crtc_state *cstate;
-
-	if (!crtc_state)
-		return false;
-
-	cstate = to_sde_crtc_state(crtc_state);
-	return !!cstate->dim_layer_status;
-}
 
 static int sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
 		struct plane_state *pstates, int cnt)
@@ -5107,6 +5037,77 @@ static int sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
 		cstate->finger_down = false;
 	}
 	return 0;
+}
+
+static int _sde_crtc_atomic_check_pstates(struct drm_crtc *crtc,
+		struct drm_crtc_state *state,
+		struct plane_state *pstates,
+		struct sde_multirect_plane_states *multirect_plane)
+{
+	struct sde_crtc *sde_crtc;
+	struct sde_crtc_state *cstate;
+	struct sde_kms *kms;
+	struct drm_plane *plane;
+	struct drm_display_mode *mode;
+	int rc = 0, cnt = 0;
+
+	kms = _sde_crtc_get_kms(crtc);
+
+	if (!kms || !kms->catalog) {
+		SDE_ERROR("invalid parameters\n");
+		return -EINVAL;
+	}
+
+	sde_crtc = to_sde_crtc(crtc);
+	cstate = to_sde_crtc_state(state);
+	mode = &state->adjusted_mode;
+
+	/* get plane state for all drm planes associated with crtc state */
+	rc = _sde_crtc_check_get_pstates(crtc, state, mode, pstates,
+			plane, multirect_plane, &cnt);
+	if (rc)
+		return rc;
+	
+	/*
+	 * mi layer check
+	 *	 need execute only sde_enc->disp_info.is_primary is true
+	*/
+
+	rc = sde_crtc_fod_atomic_check(cstate, pstates, cnt);
+	if (rc)
+		return rc;
+
+	/* assign mixer stages based on sorted zpos property */
+	rc = _sde_crtc_check_zpos(state, sde_crtc, pstates, cstate, mode, cnt);
+	if (rc)
+		return rc;
+
+	rc = _sde_crtc_check_secure_state(crtc, state, pstates, cnt);
+	if (rc)
+		return rc;
+
+	/*
+	 * validate and set source split:
+	 * use pstates sorted by stage to check planes on same stage
+	 * we assume that all pipes are in source split so its valid to compare
+	 * without taking into account left/right mixer placement
+	 */
+	rc = _sde_crtc_validate_src_split_order(crtc, pstates, cnt);
+	if (rc)
+		return rc;
+
+	return 0;
+}
+
+bool sde_crtc_get_dim_layer_status(struct drm_crtc_state *crtc_state)
+{
+	struct sde_crtc_state *cstate;
+
+	if (!crtc_state)
+		return false;
+
+	cstate = to_sde_crtc_state(crtc_state);
+	return !!cstate->dim_layer_status;
 }
 
 static int sde_crtc_atomic_check(struct drm_crtc *crtc,
