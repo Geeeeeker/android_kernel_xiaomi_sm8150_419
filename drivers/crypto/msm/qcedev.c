@@ -2111,7 +2111,7 @@ exit_free_qcedev_areq:
 	if (podev) {
 		if (podev->platform_support.bus_scale_table != NULL &&
 				cmd != QCEDEV_IOCTL_MAP_BUF_REQ &&
-				cmd != QCEDEV_IOCTL_UNMAP_BUF_REQ)
+				cmd != QCEDEV_IOCTL_UNMAP_BUF_REQ && podev != NULL)
 			qcedev_ce_high_bw_req(podev, false);
 	}
 	kfree(qcedev_areq);
