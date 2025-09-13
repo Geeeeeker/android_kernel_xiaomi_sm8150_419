@@ -290,17 +290,11 @@ static int hfi_process_sess_evt_seq_changed(u32 device_id,
 					dpb_counts->max_ref_frames;
 				event_notify.max_dec_buffering =
 					dpb_counts->max_dec_buffering;
-				event_notify.max_reorder_frames =
-					dpb_counts->max_reorder_frames;
-				event_notify.fw_min_cnt =
-					dpb_counts->fw_min_cnt;
 				s_vpr_h(sid,
 					"FW DPB counts: dpb %d ref %d buff %d reorder %d fw_min_cnt %d\n",
 						dpb_counts->max_dpb_count,
 						dpb_counts->max_ref_frames,
-						dpb_counts->max_dec_buffering,
-						dpb_counts->max_reorder_frames,
-						dpb_counts->fw_min_cnt);
+						dpb_counts->max_dec_buffering);
 				data_ptr +=
 					sizeof(struct hfi_dpb_counts);
 				rem_size -= sizeof(struct hfi_dpb_counts);
