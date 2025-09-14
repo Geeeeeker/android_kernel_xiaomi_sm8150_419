@@ -107,7 +107,7 @@ void free_buffer_page(struct ion_system_heap *heap,
 	if (!(buffer->flags & ION_FLAG_POOL_FORCE_ALLOC)) {
 		struct ion_page_pool *pool;
 
-		if (vmid > 0)
+		if (vmid > 0 && PagePrivate(page))
 			pool = heap->secure_pools[vmid][order_to_index(order)];
 		else if (cached)
 			pool = heap->cached_pools[order_to_index(order)];

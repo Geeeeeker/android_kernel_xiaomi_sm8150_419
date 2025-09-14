@@ -38,6 +38,7 @@
 #define ION_SECURE_HEAP_NAME	"secure_heap"
 #define ION_SECURE_DISPLAY_HEAP_NAME "secure_display"
 #define ION_AUDIO_HEAP_NAME    "audio"
+#define ION_VIDEO_HEAP_NAME    "video"
 
 #define ION_IS_CACHED(__flags)  ((__flags) & ION_FLAG_CACHED)
 
@@ -166,6 +167,14 @@ struct ion_device {
 	int heap_cnt;
 };
 
+/* refer to include/linux/pm.h */
+
+
+struct ion_pm_ops {
+	int (*freeze)(struct ion_heap *heap);
+	int (*restore)(struct ion_heap *heap);
+};
+
 /**
  * struct ion_heap_ops - ops to operate on a given heap
  * @allocate:		allocate memory
@@ -191,6 +200,7 @@ struct ion_heap_ops {
 	int (*map_user)(struct ion_heap *mapper, struct ion_buffer *buffer,
 			struct vm_area_struct *vma);
 	int (*shrink)(struct ion_heap *heap, gfp_t gfp_mask, int nr_to_scan);
+	struct ion_pm_ops pm;
 };
 
 /**
