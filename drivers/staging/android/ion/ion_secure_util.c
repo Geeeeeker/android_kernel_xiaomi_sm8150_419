@@ -21,7 +21,8 @@ bool is_secure_vmid_valid(int vmid)
 		vmid == VMID_CP_SPSS_SP ||
 		vmid == VMID_CP_SPSS_SP_SHARED ||
 		vmid == VMID_CP_SPSS_HLOS_SHARED ||
-		vmid == VMID_CP_CDSP);
+		vmid == VMID_CP_CDSP ||
+		vmid == VMID_CP_DSP_EXT);
 }
 
 bool is_secure_allocation(unsigned long flags)
@@ -55,6 +56,8 @@ int get_secure_vmid(unsigned long flags)
 		return VMID_CP_SPSS_HLOS_SHARED;
 	if (flags & ION_FLAG_CP_CDSP)
 		return VMID_CP_CDSP;
+	if (flags & ION_FLAG_CP_DSP_EXT)
+		return VMID_CP_DSP_EXT;
 	return -EINVAL;
 }
 
