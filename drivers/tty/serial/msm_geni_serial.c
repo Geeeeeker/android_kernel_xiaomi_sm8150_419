@@ -522,17 +522,16 @@ static bool check_transfers_inflight(struct uart_port *uport)
 	return xfer_on;
 }
 
-static int wait_for_transfers_inflight(struct uart_port *uport)
+static void wait_for_transfers_inflight(struct uart_port *uport)
 {
 	int iter = 0;
 	struct msm_geni_serial_port *port = GET_DEV_PORT(uport);
 	unsigned int geni_status;
-	u32 rx_len_in = 0;
 
 	geni_status = geni_read_reg_nolog(uport->membase, SE_GENI_STATUS);
 	/* Possible stop rx is called before this. */
 	if (!(geni_status & S_GENI_CMD_ACTIVE))
-		return 0;
+		return;
 
 	while (iter < WAIT_XFER_MAX_ITER) {
 		if (check_transfers_inflight(uport)) {
@@ -544,18 +543,9 @@ static int wait_for_transfers_inflight(struct uart_port *uport)
 		}
 	}
 	if (check_transfers_inflight(uport)) {
-		rx_len_in =
-			geni_read_reg_nolog(uport->membase, SE_DMA_RX_LEN_IN);
-		if (rx_len_in) {
-			IPC_LOG_MSG(port->ipc_log_misc,
-				     "%s: Bailout rx_len_in is set\n",
-				     __func__);
-			return -EBUSY;
-		}
 		geni_se_dump_dbg_regs(&port->serial_rsc,
 				uport->membase, port->ipc_log_misc);
 	}
-	return 0;
 }
 
 static int vote_clock_on(struct uart_port *uport)
@@ -604,7 +594,7 @@ static int vote_clock_off(struct uart_port *uport)
 				__func__, port->ioctl_count);
 		return -EPERM;
 	}
-	ret = wait_for_transfers_inflight(uport);
+	wait_for_transfers_inflight(uport);
 	if (ret) {
 		IPC_LOG_MSG(port->ipc_log_pwr,
 			    "%s wait_for_transfer_inflight return ret: %d",
@@ -674,7 +664,6 @@ static int msm_geni_serial_ioctl(struct uart_port *uport, unsigned int cmd,
 static void msm_geni_serial_break_ctl(struct uart_port *uport, int ctl)
 {
 	struct msm_geni_serial_port *port = GET_DEV_PORT(uport);
-	int ret = 0;
 
 	if (!uart_console(uport) && device_pending_suspend(uport)) {
 		IPC_LOG_MSG(port->ipc_log_misc,
@@ -684,11 +673,7 @@ static void msm_geni_serial_break_ctl(struct uart_port *uport, int ctl)
 	}
 
 	if (ctl) {
-		ret = wait_for_transfers_inflight(uport);
-		if (ret)
-			IPC_LOG_MSG(port->ipc_log_misc,
-			     "%s: wait_for_transfer_inflight return ret:%d\n",
-			     __func__, ret);
+		wait_for_transfers_inflight(uport);
 		geni_setup_m_cmd(uport->membase, UART_START_BREAK, 0);
 	} else {
 		geni_setup_m_cmd(uport->membase, UART_STOP_BREAK, 0);
@@ -2435,11 +2420,7 @@ static void msm_geni_serial_shutdown(struct uart_port *uport)
 		disable_irq(uport->irq);
 	} else {
 		msm_geni_serial_power_on(uport);
-		ret = wait_for_transfers_inflight(uport);
-		if (ret)
-			IPC_LOG_MSG(msm_port->ipc_log_misc,
-			     "%s: wait_for_transfer_inflight return ret:%d\n",
-			     __func__, ret);
+		wait_for_transfers_inflight(uport);
 		msm_geni_serial_stop_tx(uport);
 	}
 
@@ -3770,15 +3751,7 @@ static int msm_geni_serial_runtime_suspend(struct device *dev)
 							SE_GENI_STATUS);
 
 	IPC_LOG_MSG(port->ipc_log_pwr, "%s: Start\n", __func__);
-	ret = wait_for_transfers_inflight(&port->uport);
-	if (ret) {
-		IPC_LOG_MSG(port->ipc_log_pwr,
-			     "%s: wait_for_transfer_inflight return ret:%d\n",
-			     __func__, ret);
-		/* Flow on from UART */
-		msm_geni_serial_allow_rx(port);
-		return -EBUSY;
-	}
+	wait_for_transfers_inflight(&port->uport);
 	/*
 	 * Manual RFR On.
 	 * Stop Rx.
