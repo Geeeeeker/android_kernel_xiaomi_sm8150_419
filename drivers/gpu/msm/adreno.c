@@ -1020,11 +1020,8 @@ static int adreno_of_parse_pwrlevels(struct adreno_device *adreno_dev,
 			&level->gpu_freq))
 			return -EINVAL;
 
-		of_property_read_u32(child, "qcom,acd-level",
-			&level->acd_level);
-
 		ret = kgsl_of_property_read_ddrtype(child,
-			"qcom,bus-freq", &level->bus_freq);
+				"qcom,bus-freq", &level->bus_freq);
 		if (ret) {
 			dev_err(device->dev,
 				"%pOF: Couldn't read the bus frequency for power level %d\n",
