@@ -308,4 +308,8 @@ void sde_plane_setup_src_split_order(struct drm_plane *plane,
  */
 bool sde_plane_is_cache_required(struct drm_plane *plane);
 
+#if defined(CONFIG_MACH_XIAOMI_SM8150)
+int sde_plane_check_fod_layer(const struct drm_plane_state *drm_state);
+#endif
+
 #endif /* _SDE_PLANE_H_ */

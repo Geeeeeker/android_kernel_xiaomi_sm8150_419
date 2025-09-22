@@ -1046,6 +1046,14 @@ static void sde_kms_commit(struct msm_kms *kms,
 		}
 	}
 
+#if defined(CONFIG_MACH_XIAOMI_SM8150)
+/*
+	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+		sde_crtc_fod_ui_ready(crtc, old_crtc_state);
+	}
+*/
+#endif
+
 	SDE_ATRACE_END("sde_kms_commit");
 }
 
@@ -1194,11 +1202,21 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 
 		sde_connector_complete_qsync_commit(connector, &params);
 
+#if defined(CONFIG_MACH_XIAOMI_SM8150)
+		SDE_ATRACE_BEGIN("post_kickoff");
+#endif
 		rc = c_conn->ops.post_kickoff(connector, &params);
+#if defined(CONFIG_MACH_XIAOMI_SM8150)
+		SDE_ATRACE_END("post_kickoff");
+#endif
+
 		if (rc) {
 			pr_err("Connector Post kickoff failed rc=%d\n",
 					 rc);
 		}
+#if defined(CONFIG_MACH_XIAOMI_SM8150)
+		sde_connector_fod_notify(connector);
+#endif
 	}
 
 	_sde_kms_drm_check_dpms(old_state, DRM_PANEL_EVENT_BLANK);
