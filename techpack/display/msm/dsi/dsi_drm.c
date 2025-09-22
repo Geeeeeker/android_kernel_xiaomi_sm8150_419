@@ -6,6 +6,9 @@
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_atomic.h>
+#include <drm/drm_notifier.h>
+#include <linux/notifier.h>
+#include <drm/drm_bridge.h>
 
 #include "msm_kms.h"
 #include "sde_connector.h"
@@ -13,20 +16,52 @@
 #include "sde_trace.h"
 #include "sde_dbg.h"
 
+static BLOCKING_NOTIFIER_HEAD(drm_notifier_list);
+
 #define to_dsi_bridge(x)     container_of((x), struct dsi_bridge, base)
 #define to_dsi_state(x)      container_of((x), struct dsi_connector_state, base)
-
-#define DEFAULT_PANEL_JITTER_NUMERATOR		2
-#define DEFAULT_PANEL_JITTER_DENOMINATOR	1
-#define DEFAULT_PANEL_JITTER_ARRAY_SIZE		2
-#define DEFAULT_PANEL_PREFILL_LINES	25
+#define DEFAULT_PANEL_JITTER_NUMERATOR          2
+#define DEFAULT_PANEL_JITTER_DENOMINATOR        1
+#define DEFAULT_PANEL_JITTER_ARRAY_SIZE         2
+#define DEFAULT_PANEL_PREFILL_LINES     25
 
 static struct dsi_display_mode_priv_info default_priv_info = {
-	.panel_jitter_numer = DEFAULT_PANEL_JITTER_NUMERATOR,
-	.panel_jitter_denom = DEFAULT_PANEL_JITTER_DENOMINATOR,
-	.panel_prefill_lines = DEFAULT_PANEL_PREFILL_LINES,
-	.dsc_enabled = false,
+        .panel_jitter_numer = DEFAULT_PANEL_JITTER_NUMERATOR,
+        .panel_jitter_denom = DEFAULT_PANEL_JITTER_DENOMINATOR,
+        .panel_prefill_lines = DEFAULT_PANEL_PREFILL_LINES,
+        .dsc_enabled = false,
 };
+
+/*
+ *	drm_register_client - register a client notifier
+ *	@nb:notifier block to callback when event happen
+ */
+int drm_register_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&drm_notifier_list, nb);
+}
+EXPORT_SYMBOL(drm_register_client);
+
+/*
+ *	drm_unregister_client - unregister a client notifier
+ *	@nb:notifier block to callback when event happen
+ */
+int drm_unregister_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&drm_notifier_list, nb);
+}
+EXPORT_SYMBOL(drm_unregister_client);
+
+/*
+ *	drm_notifier_call_chain - notify clients of drm_event
+ *
+ */
+
+int drm_notifier_call_chain(unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&drm_notifier_list, val, v);
+}
+EXPORT_SYMBOL(drm_notifier_call_chain);
 
 static void convert_to_dsi_mode(const struct drm_display_mode *drm_mode,
 				struct dsi_display_mode *dsi_mode)
@@ -165,6 +200,13 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 {
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+	struct drm_notify_data g_notify_data;
+	int power_mode = 0;
+
+	power_mode = sde_connector_get_lp(c_bridge->display->drm_conn);
+	g_notify_data.data = &power_mode;
+	g_notify_data.id = MSM_DRM_PRIMARY_DISPLAY;
+	drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
 
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
@@ -212,12 +254,99 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 				c_bridge->id, rc);
 		(void)dsi_display_unprepare(c_bridge->display);
 	}
+	drm_notifier_call_chain(DRM_EVENT_BLANK, &g_notify_data);
+
 	SDE_ATRACE_END("dsi_display_enable");
 
 	rc = dsi_display_splash_res_cleanup(c_bridge->display);
 	if (rc)
 		DSI_ERR("Continuous splash pipeline cleanup failed, rc=%d\n",
 									rc);
+}
+
+int panel_disp_param_send(struct dsi_display *display, int cmd);
+static void dsi_bridge_disp_param_set(struct drm_bridge *bridge, int cmd)
+{
+	int rc = 0;
+	struct dsi_bridge *c_bridge;
+
+	if (!bridge) {
+		pr_err("Invalid params\n");
+		return;
+	}
+
+	c_bridge = to_dsi_bridge(bridge);
+
+	SDE_ATRACE_BEGIN("panel_disp_param_send");
+	rc = panel_disp_param_send(c_bridge->display, cmd);
+	if (rc) {
+		pr_err("[%d] DSI disp param send failed, rc=%d\n",
+		       c_bridge->id, rc);
+	}
+	SDE_ATRACE_END("panel_disp_param_send");
+}
+
+static int dsi_bridge_get_panel_info(struct drm_bridge *bridge, char *buf)
+{
+	int rc = 0;
+	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+
+	if (!c_bridge) {
+		pr_err("Invalid params\n");
+		return rc;
+	}
+
+	if (c_bridge->display->name)
+		return snprintf(buf, PAGE_SIZE, c_bridge->display->name);
+
+	return rc;
+}
+
+int dsi_panel_set_doze_backlight(struct dsi_display *display);
+
+ssize_t dsi_panel_get_doze_backlight(struct dsi_display *display, char *buf);
+
+int dsi_bridge_disp_set_doze_backlight(struct drm_connector *connector,
+			int doze_backlight)
+{
+	struct dsi_display *display = NULL;
+	struct dsi_bridge *c_bridge = NULL;
+
+	if (!connector || !connector->encoder || !connector->encoder->bridge) {
+		pr_err("Invalid connector/encoder/bridge ptr\n");
+		return -EINVAL;
+	}
+
+	c_bridge =  to_dsi_bridge(connector->encoder->bridge);
+	display = c_bridge->display;
+	if (!display || !display->panel || !display->drm_dev) {
+		pr_err("Invalid display/panel/drm_dev ptr\n");
+		return -EINVAL;
+	} else
+		display->drm_dev->doze_brightness = doze_backlight;
+
+	return dsi_panel_set_doze_backlight(display);
+}
+
+ssize_t dsi_bridge_disp_get_doze_backlight(struct drm_connector *connector,
+			char *buf)
+{
+	struct dsi_display *display = NULL;
+	struct dsi_bridge *c_bridge = NULL;
+
+	if (!connector || !connector->encoder || !connector->encoder->bridge) {
+		pr_err("Invalid connector/encoder/bridge ptr\n");
+		return -EINVAL;
+	}
+
+	c_bridge =  to_dsi_bridge(connector->encoder->bridge);
+	display = c_bridge->display;
+	if (!display || !display->panel) {
+		pr_err("Invalid display/panel ptr\n");
+		return -EINVAL;
+	}
+
+	return dsi_panel_get_doze_backlight(display, buf);
 }
 
 static void dsi_bridge_enable(struct drm_bridge *bridge)
@@ -285,6 +414,13 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 {
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+	struct drm_notify_data g_notify_data;
+	int power_mode = 0;
+
+	power_mode = sde_connector_get_lp(c_bridge->display->drm_conn);
+	g_notify_data.data = &power_mode;
+	g_notify_data.id = MSM_DRM_PRIMARY_DISPLAY;
+	drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
 
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
@@ -310,6 +446,8 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 		return;
 	}
 	SDE_ATRACE_END("dsi_bridge_post_disable");
+
+	drm_notifier_call_chain(DRM_EVENT_BLANK, &g_notify_data);
 }
 
 static void dsi_bridge_mode_set(struct drm_bridge *bridge,
@@ -537,6 +675,8 @@ static const struct drm_bridge_funcs dsi_bridge_ops = {
 	.disable      = dsi_bridge_disable,
 	.post_disable = dsi_bridge_post_disable,
 	.mode_set     = dsi_bridge_mode_set,
+	.disp_param_set = dsi_bridge_disp_param_set,
+	.disp_get_panel_info = dsi_bridge_get_panel_info,
 };
 
 int dsi_conn_set_info_blob(struct drm_connector *connector,
@@ -1057,6 +1197,7 @@ struct dsi_bridge *dsi_drm_bridge_init(struct dsi_display *display,
 	}
 
 	encoder->bridge = &bridge->base;
+
 	return bridge;
 error_free_bridge:
 	kfree(bridge);
