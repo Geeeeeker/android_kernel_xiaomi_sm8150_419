@@ -238,7 +238,6 @@ struct drm_bridge_funcs {
 	 */
 	void (*enable)(struct drm_bridge *bridge);
 
-<<<<<<< HEAD
 	/**
 	 * @atomic_pre_enable:
 	 *
