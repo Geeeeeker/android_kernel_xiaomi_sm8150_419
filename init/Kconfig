@@ -588,6 +588,7 @@ config CPU_ISOLATION
 	bool "CPU isolation"
 	depends on SMP || COMPILE_TEST
 	default n
+	help
 	  Make sure that CPUs running critical tasks are not disturbed by
 	  any source of "noise" such as unbound workqueues, timers, kthreads...
 	  Unbound jobs get offloaded to housekeeping CPUs. This is driven by
