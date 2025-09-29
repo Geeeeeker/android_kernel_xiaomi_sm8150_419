@@ -277,8 +277,8 @@ static u64 qcom_cpufreq_get_cpu_cycle_counter(int cpu)
 	cycle_counter_ret = cpu_counter->total_cycle_counter;
 	spin_unlock_irqrestore(&cpu_counter->lock, flags);
 	/* duckyduck: only use for cpufreq-hw specific debug
-	 * else logcat spam, reduced performance and longer boottime*/
-	pr_debug("CPU %u, core-id 0x%x, offset %u\n", cpu, topology_core_id(cpu), offset);
+	 * else logcat spam, reduced performance and longer boottime
+	pr_debug("CPU %u, core-id 0x%x, offset %u\n", cpu, topology_core_id(cpu), offset); */
 
 	return cycle_counter_ret;
 }
