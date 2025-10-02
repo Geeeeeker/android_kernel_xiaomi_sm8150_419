@@ -4347,6 +4347,16 @@ free_lock:
 }
 EXPORT_SYMBOL(gsi_alloc_channel_ee);
 
+int gsi_chk_intset_value(void)
+{
+	uint32_t val;
+
+	val = gsi_readl(gsi_ctx->base +
+		GSI_EE_n_CNTXT_INTSET_OFFS(gsi_ctx->per.ee));
+	return val;
+}
+EXPORT_SYMBOL(gsi_chk_intset_value);
+
 int gsi_enable_flow_control_ee(unsigned int chan_idx, unsigned int ee,
 								int *code)
 {
