@@ -1510,10 +1510,9 @@ static int clk_core_determine_round_nolock(struct clk_core *core,
 
 	lockdep_assert_held(&prepare_lock);
 
-	if (!core) {
-		pr_err("clk_core_determine_round_nolock: core is NULL\n");
+	if (!core)
 		return 0;
-	}
+
 	/*
 	 * At this point, core protection will be disabled if
 	 * - if the provider is not protected at all
@@ -1532,8 +1531,6 @@ static int clk_core_determine_round_nolock(struct clk_core *core,
 
 		req->rate = rate;
 	} else {
-		pr_err("clk_core_determine_round_nolock: no round_rate or determine_rate op for %s\n",
-			core->name);
 		return -EINVAL;
 	}
 
@@ -4755,12 +4752,9 @@ static void clk_populate_clock_opp_table(struct device_node *np,
 
 	for (n = 0; ; n++) {
 		rrate = clk_hw_round_rate(hw, rate + 1);
-				pr_err("Attempt %d: clk_hw_round_rate(%s, %lu) returned %lu\n",
-					n, core->name, rate + 1, rrate);
 		if (!rrate) {
 			pr_err("clk_round_rate failed for %s\n",
 							core->name);
-			pr_err("Trying clk_round_rate for %s with rate %lu\n", core->name, rate + 1);
 			goto err_derive_device_list;
 		}
 
