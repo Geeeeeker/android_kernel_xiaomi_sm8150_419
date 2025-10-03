@@ -647,6 +647,7 @@ static int cp_get_qc_hvdcp3_type(void)
 	return ret;
 }
 
+
 #define TAPER_TIMEOUT	10
 #define IBUS_CHANGE_TIMEOUT  5
 static int cp_flash2_charge(unsigned int port)
@@ -693,7 +694,7 @@ static int cp_flash2_charge(unsigned int port)
 			sys_config.ibat_minus_deviation_val = 1050;
 			sys_config.ibat_plus_deviation_val = 50;
 			pm_state.batt_cell_volt_triggered = true;
-			pr_info("batt cell volt > 4200mv or batt soc > 29%%, modify bq qc3 adjust parameters\n");
+			pr_info("batt cell volt > 4200mv or batt soc > 29%, modify bq qc3 adjust parameters\n");
 		}
 	}
 
