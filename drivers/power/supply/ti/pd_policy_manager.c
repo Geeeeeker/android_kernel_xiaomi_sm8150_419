@@ -1547,9 +1547,9 @@ static int usbpd_pm_probe(struct platform_device *pdev)
 static int usbpd_pm_remove(struct platform_device *pdev)
 {
 	power_supply_unreg_notifier(&__pdpm->nb);
-	cancel_delayed_work(&__pdpm->pm_work);
-	cancel_work(&__pdpm->cp_psy_change_work);
-	cancel_work(&__pdpm->usb_psy_change_work);
+	cancel_delayed_work_sync(&__pdpm->pm_work);
+	cancel_work_sync(&__pdpm->cp_psy_change_work);
+	cancel_work_sync(&__pdpm->usb_psy_change_work);
 
 	return 0;
 }

@@ -749,9 +749,6 @@ struct smb_charger {
 	struct votable		*icl_irq_disable_votable;
 	struct votable		*limited_irq_disable_votable;
 	struct votable		*hdc_irq_disable_votable;
-#if defined(CONFIG_MACH_XIAOMI_VAYU) || defined(CONFIG_MACH_XIAOMI_NABU)
-	struct votable		*cp_ilim_votable;
-#endif
 	struct votable		*temp_change_irq_disable_votable;
 	struct votable		*qnovo_disable_votable;
 

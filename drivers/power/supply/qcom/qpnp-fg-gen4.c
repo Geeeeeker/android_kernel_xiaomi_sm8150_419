@@ -4459,7 +4459,7 @@ static void pl_enable_work(struct work_struct *work)
 static void vbat_sync_work(struct work_struct *work)
 {
 	pr_err("sys_sync:vbat_sync_work\n");
-	sys_sync();
+	ksys_sync();
 }
 
 #if defined(CONFIG_MACH_XIAOMI_VAYU) || defined(CONFIG_MACH_XIAOMI_NABU)

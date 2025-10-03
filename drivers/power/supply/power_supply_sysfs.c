@@ -219,46 +219,46 @@ static ssize_t power_supply_show_property(struct device *dev,
 			      power_supply_health_text[value.intval]);
 		break;
 #ifdef CONFIG_MACH_XIAOMI_SM8150
-	case POWER_SUPPLY_PROP_WIRELESS_VERSION
+	case POWER_SUPPLY_PROP_WIRELESS_VERSION:
 		ret = scnprintf(buf, PAGE_SIZE, "0x%x\n",
 				value.intval);
-	case POWER_SUPPLY_PROP_WIRELESS_WAKELOCK
+	case POWER_SUPPLY_PROP_WIRELESS_WAKELOCK:
 		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
 				value.intval);
-	case POWER_SUPPLY_PROP_SIGNAL_STRENGTH
+	case POWER_SUPPLY_PROP_SIGNAL_STRENGTH:
 		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
 				value.intval);
-	case POWER_SUPPLY_PROP_WIRELESS_CP_EN
+	case POWER_SUPPLY_PROP_WIRELESS_CP_EN:
 		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
 				value.intval);
-	case POWER_SUPPLY_PROP_TYPE_RECHECK
+	case POWER_SUPPLY_PROP_TYPE_RECHECK:
 		ret = scnprintf(buf, PAGE_SIZE, "0x%x\n",
 				value.intval);
 #if defined(CONFIG_MACH_XIAOMI_VAYU) || defined(CONFIG_MACH_XIAOMI_NABU)
-	case POWER_SUPPLY_PROP_TX_MAC
+	case POWER_SUPPLY_PROP_TX_MAC:
 		ret = scnprintf(buf, PAGE_SIZE, "%llx\n",
 				value.int64val);
 #ifdef CONFIG_MACH_XIAOMI_NABU
-	case POWER_SUPPLY_PROP_PEN_MAC
+	case POWER_SUPPLY_PROP_PEN_MAC:
 		ret = scnprintf(buf, PAGE_SIZE, "%llx\n",
 				value.int64val);
-	case POWER_SUPPLY_PROP_REVERSE_PEN_SOC
+	case POWER_SUPPLY_PROP_REVERSE_PEN_SOC:
 		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
 				value.intval);
-	case POWER_SUPPLY_PROP_REVERSE_CHG_STATE
+	case POWER_SUPPLY_PROP_REVERSE_CHG_STATE:
 		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
 				value.intval);
-	case POWER_SUPPLY_PROP_REVERSE_PEN_CHG_STATE
+	case POWER_SUPPLY_PROP_REVERSE_PEN_CHG_STATE:
 		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
 				value.intval);
 #endif
-	case POWER_SUPPLY_PROP_RX_CR
+	case POWER_SUPPLY_PROP_RX_CR:
 		ret = scnprintf(buf, PAGE_SIZE, "%llx\n",
 				value.int64val);
-	case POWER_SUPPLY_PROP_RX_CEP
+	case POWER_SUPPLY_PROP_RX_CEP:
 		ret = scnprintf(buf, PAGE_SIZE, "%llx\n",
 				value.int64val);
-	case POWER_SUPPLY_PROP_BT_STATE
+	case POWER_SUPPLY_PROP_BT_STATE:
 		ret = scnprintf(buf, PAGE_SIZE, "%x\n",
 				value.intval);
 #endif
@@ -277,8 +277,7 @@ static ssize_t power_supply_show_property(struct device *dev,
 			value.arrayval[4], value.arrayval[5], value.arrayval[6], value.arrayval[7],
 			value.arrayval[8], value.arrayval[9], value.arrayval[10], value.arrayval[11],
 			value.arrayval[12], value.arrayval[13], value.arrayval[14], value.arrayval[15]);
-	case POWER_SUPPLY_PROP_VERIFY_MODEL_NAME
-		return sprintf(buf, "%s\n", value.strval);
+	case POWER_SUPPLY_PROP_VERIFY_MODEL_NAME:
 #endif
 	case POWER_SUPPLY_PROP_CHARGE_COUNTER_EXT:
 		ret = sprintf(buf, "%lld\n", value.int64val);
@@ -343,7 +342,7 @@ static ssize_t power_supply_store_property(struct device *dev,
 		if (ret < 0)
 			return ret;
 		value.int64val = num_long;
-		ret = power_supply_set_property(psy, off, &value);
+		ret = power_supply_set_property(psy, psp, &value);
 		if (ret < 0)
 			return ret;
 		else
@@ -355,7 +354,7 @@ static ssize_t power_supply_store_property(struct device *dev,
 		if (ret < 0)
 			return ret;
 		value.int64val = num_long;
-		ret = power_supply_set_property(psy, off, &value);
+		ret = power_supply_set_property(psy, psp, &value);
 		if (ret < 0)
 			return ret;
 		else

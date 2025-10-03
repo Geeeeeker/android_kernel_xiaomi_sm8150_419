@@ -4913,10 +4913,13 @@ int smblib_get_prop_dc_voltage_now(struct smb_charger *chg,
 int smblib_set_prop_dc_current_max(struct smb_charger *chg,
 				    const union power_supply_propval *val)
 {
-	chg->dcin_icl_user_set = true;
 #ifdef CONFIG_MACH_XIAOMI_SM8150
 	int rc;
+#endif
 
+	chg->dcin_icl_user_set = true;
+
+#ifdef CONFIG_MACH_XIAOMI_SM8150
 	rc = vote(chg->dc_icl_votable, DCIN_ADAPTER_VOTER, true, val->intval);
 	return rc;
 #else
@@ -8564,7 +8567,6 @@ int smblib_get_quick_charge_type(struct smb_charger *chg)
 	return 0;
 }
 #endif
-#endif
 
 /* triggers when HVDCP 3.0 authentication has finished */
 static void smblib_handle_hvdcp_3p0_auth_done(struct smb_charger *chg,
@@ -10303,9 +10305,8 @@ irqreturn_t dc_plugin_irq_handler(int irq, void *data)
 #ifdef CONFIG_MACH_XIAOMI_SM8150
 	int rc;
 #else
-	int rc, wireless_vout = 0;
+	int rc, wireless_vout = 0, wls_set = 0;
 #endif
-	int wls_set = 0; // FIXME: REMOVEME
 	int sec_charger;
 
 	rc = smblib_get_prop_vph_voltage_now(chg, &pval);
