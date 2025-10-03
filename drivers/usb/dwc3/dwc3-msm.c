@@ -51,12 +51,6 @@ static bool bc12_compliance;
 module_param(bc12_compliance, bool, 0644);
 MODULE_PARM_DESC(bc12_compliance, "Disable sending dp pulse for CDP");
 
-#undef dev_dbg
-#define dev_dbg dev_info
-#undef pr_debug
-#define pr_debug pr_info
-
-
 #define SDP_CONNETION_CHECK_TIME 10000 /* in ms */
 #define EXTCON_SYNC_EVENT_TIMEOUT_MS 1500 /* in ms */
 
@@ -4652,10 +4646,8 @@ static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned int mA)
 		 * bail out if suspend happened with float cable
 		 * connected
 		 */
-		/* xiaomi charger driver need this current config float current, so remove this qcom default retuen feature.
 		if (mA == 2)
 			return 0;
-		*/
 
 		if (!mA)
 			pval.intval = -ETIMEDOUT;
@@ -4746,6 +4738,7 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 			dev_dbg(mdwc->dev, "still not in lpm, wait.\n");
 			break;
 		}
+
 		if (!test_bit(ID, &mdwc->inputs)) {
 			dev_dbg(mdwc->dev, "!id\n");
 			mdwc->drd_state = DRD_STATE_HOST_IDLE;
