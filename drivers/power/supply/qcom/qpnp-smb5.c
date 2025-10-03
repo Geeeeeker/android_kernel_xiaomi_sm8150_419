@@ -1665,6 +1665,19 @@ static int smb5_usb_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_PD_ACTIVE:
 		val->intval = chg->pd_active;
 		break;
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+	case POWER_SUPPLY_PROP_PD_AUTHENTICATION:
+		val->intval = chg->pd_verifed;
+		break;
+#if defined(CONFIG_MACH_XIAOMI_VAYU) || defined(CONFIG_MACH_XIAOMI_NABU)
+	case POWER_SUPPLY_PROP_FASTCHARGE_MODE:
+		val->intval = smblib_get_fastcharge_mode(chg);
+		break;
+	case POWER_SUPPLY_PROP_PD_REMOVE_COMPENSATION:
+		val->intval = chg->remove_comp;
+		break;
+#endif
+#endif
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_SETTLED:
 		rc = smblib_get_prop_input_current_settled(chg, val);
 		break;
@@ -1756,6 +1769,11 @@ static int smb5_usb_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_APSD_TIMEOUT:
 		val->intval = chg->apsd_ext_timeout;
 		break;
+#if defined(CONFIG_MACH_XIAOMI_VAYU) || defined(CONFIG_MACH_XIAOMI_NABU)
+	case POWER_SUPPLY_PROP_APDO_MAX:
+		val->intval = chg->apdo_max;
+		break;
+#endif
 	case POWER_SUPPLY_PROP_CHARGER_STATUS:
 		val->intval = 0;
 		if (chg->sdam_base) {
@@ -2117,19 +2135,6 @@ static int smb5_usb_main_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_TYPE:
 		val->intval = POWER_SUPPLY_TYPE_MAIN;
 		break;
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-	case POWER_SUPPLY_PROP_PD_AUTHENTICATION:
-		val->intval = chg->pd_verifed;
-		break;
-#endif
-#if defined(CONFIG_MACH_XIAOMI_VAYU) || defined(CONFIG_MACH_XIAOMI_NABU)
-	case POWER_SUPPLY_PROP_FASTCHARGE_MODE:
-		val->intval = smblib_get_fastcharge_mode(chg);
-		break;
-	case POWER_SUPPLY_PROP_PD_REMOVE_COMPENSATION:
-		val->intval = chg->remove_comp;
-		break;
-#endif
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_SETTLED:
 		rc = smblib_get_prop_input_current_settled(chg, val);
 		break;
@@ -2178,11 +2183,6 @@ static int smb5_usb_main_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_HOT_TEMP:
 		val->intval = chg->thermal_overheat;
 		break;
-#if defined(CONFIG_MACH_XIAOMI_VAYU) || defined(CONFIG_MACH_XIAOMI_NABU)
-	case POWER_SUPPLY_PROP_APDO_MAX:
-		val->intval = chg->apdo_max;
-		break;
-#endif
 	default:
 		pr_debug("get prop %d is not supported in usb-main\n", psp);
 		rc = -EINVAL;
