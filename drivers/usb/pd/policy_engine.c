@@ -356,6 +356,11 @@ static void *usbpd_ipc_log;
 #define MAX_NON_COMPLIANT_PPS_UA		2000000
 #endif
 
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+static int min_sink_current = 900;
+module_param(min_sink_current, int, 0600);
+#endif
+
 /* params for usb_blocking_sync */
 #define STOP_USB_HOST		0
 #define START_USB_HOST		1
