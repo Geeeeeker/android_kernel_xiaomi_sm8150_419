@@ -63,12 +63,7 @@
 #define IPA_UC_WAIT_MIN_SLEEP 1000
 #define IPA_UC_WAII_MAX_SLEEP 1200
 
-#if IS_ENABLED(CONFIG_ARCH_SM8150)
-#define IPA_MPM_MAX_RING_LEN 1014
-#else
 #define IPA_MPM_MAX_RING_LEN 64
-#endif
-
 #define IPA_MAX_TETH_AGGR_BYTE_LIMIT 24
 #define IPA_MPM_MAX_UC_THRESH 4
 
@@ -89,15 +84,6 @@
 #define IPA_MAX_NUM_REQ_CACHE 10
 
 #define NAPI_WEIGHT 64
-
-/* Bit pattern for SW to identify in middle of PC saving */
-#define PC_SAVE_CONTEXT_SAVE_ENTERED            0xDEAFDEAF
-/* Bit pattern for SW to identify that PC saving completed */
-#define PC_SAVE_CONTEXT_STATUS_SUCCESS          0xFADEFADE
-/* Bit pattern for SW to identify PC restoration is ongoing */
-#define PC_RESTORE_CONTEXT_ENTERED              0xFACEFACE
-/*Bit pattern for SW to identify PC restoration completed */
-#define PC_RESTORE_CONTEXT_STATUS_SUCCESS       0xCAFECAFE
 
 /* Bit alignment for IPA4.5 GSI rings */
 #define IPA_LOW_16_BIT_MASK (0xFFFF)
@@ -1000,13 +986,6 @@ enum ipa3_sys_pipe_policy {
 	IPA_POLICY_INTR_MODE,
 	IPA_POLICY_NOINTR_MODE,
 	IPA_POLICY_INTR_POLL_MODE,
-};
-
-enum uc_state {
-	IPA_PC_SAVE_CONTEXT_SAVE_ENTERED,
-	IPA_PC_SAVE_CONTEXT_STATUS_SUCCESS,
-	IPA_PC_RESTORE_CONTEXT_ENTERED,
-	IPA_PC_RESTORE_CONTEXT_STATUS_SUCCESS,
 };
 
 struct ipa3_repl_ctx {
@@ -2057,9 +2036,6 @@ struct ipa3_context {
 	struct ipa3_mhip_ctx mhip_ctx;
 	struct ipa3_aqc_ctx aqc_ctx;
 	atomic_t ipa_clk_vote;
-	int gsi_chk_intset_value;
-	int uc_mailbox17_chk;
-	int uc_mailbox17_mismatch;
 	int (*client_lock_unlock[IPA_MAX_CLNT])(bool is_lock);
 	bool fw_loaded;
 	bool (*get_teth_port_state[IPA_MAX_CLNT])(void);
@@ -3001,7 +2977,6 @@ int ipa3_uc_interface_init(void);
 int ipa3_uc_is_gsi_channel_empty(enum ipa_client_type ipa_client);
 int ipa3_uc_state_check(void);
 int ipa3_uc_loaded_check(void);
-void ipa3_uc_map_cntr_reg_notify(void);
 int ipa3_uc_register_ready_cb(struct notifier_block *nb);
 int ipa3_uc_unregister_ready_cb(struct notifier_block *nb);
 int ipa3_uc_send_cmd(u32 cmd, u32 opcode, u32 expected_status,
@@ -3155,7 +3130,6 @@ void ipa3_reset_freeze_vote(void);
 int ipa3_ntn_init(void);
 int ipa3_get_ntn_stats(struct Ipa3HwStatsNTNInfoData_t *stats);
 struct dentry *ipa_debugfs_get_root(void);
-void ipa3_read_mailbox_17(enum uc_state state);
 struct device *ipa3_get_pdev(void);
 void ipa3_enable_dcd(void);
 void ipa3_disable_prefetch(enum ipa_client_type client);

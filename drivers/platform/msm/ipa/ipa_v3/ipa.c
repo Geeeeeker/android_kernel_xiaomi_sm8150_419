@@ -5188,15 +5188,6 @@ void ipa3_inc_client_enable_clks(struct ipa_active_client_logging_info *id)
 
 	ipa3_enable_clks();
 	ipa3_suspend_apps_pipes(false);
-	if (!ipa3_uc_state_check() &&
-		(ipa3_ctx->ipa_hw_type >= IPA_HW_v4_1)) {
-		ipa3_read_mailbox_17(IPA_PC_RESTORE_CONTEXT_STATUS_SUCCESS);
-		/* assert if intset = 0 */
-		if (ipa3_ctx->gsi_chk_intset_value == 0) {
-			IPAERR("expected 1, value: 0\n");
-			ipa_assert();
-		}
-	}
 	atomic_inc(&ipa3_ctx->ipa3_active_clients.cnt);
 	IPADBG_LOW("active clients = %d\n",
 		atomic_read(&ipa3_ctx->ipa3_active_clients.cnt));
@@ -6729,8 +6720,6 @@ static int ipa3_pre_init(const struct ipa3_plat_drv_res *resource_p,
 	ipa3_ctx->ipa_config_is_mhi = resource_p->ipa_mhi_dynamic_config;
 	ipa3_ctx->mhi_evid_limits[0] = resource_p->mhi_evid_limits[0];
 	ipa3_ctx->mhi_evid_limits[1] = resource_p->mhi_evid_limits[1];
-	ipa3_ctx->uc_mailbox17_chk = 0;
-	ipa3_ctx->uc_mailbox17_mismatch = 0;
 	ipa3_ctx->entire_ipa_block_size = resource_p->entire_ipa_block_size;
 	ipa3_ctx->do_register_collection_on_crash =
 	    resource_p->do_register_collection_on_crash;
@@ -7939,12 +7928,6 @@ static int ipa_smmu_uc_cb_probe(struct device *dev)
 	int bypass = 0;
 	int fast = 0;
 	u32 iova_ap_mapping[2];
-	/* G_RD_CNTR register */
-	u32 a1 = 0x0C220000;
-	u32 a2 = 0x4000;
-	unsigned long iova_p;
-	phys_addr_t pa_p;
-	u32 size_p;
 
 	IPADBG("UC CB PROBE dev=%pK\n", dev);
 
@@ -8013,18 +7996,6 @@ static int ipa_smmu_uc_cb_probe(struct device *dev)
 		   dev, bypass, fast);
 
 	ipa3_ctx->s1_bypass_arr[IPA_SMMU_CB_UC] = (bypass != 0);
-
-	/* map G_RD_CNTR for uc */
-	IPA_SMMU_ROUND_TO_PAGE(a1, a1, a2,
-		iova_p, pa_p, size_p);
-
-	if (ipa3_ctx->ipa_hw_type == IPA_HW_v4_1) {
-		IPADBG("mapping 0x%lx to 0x%pa size %d\n",
-			iova_p, &pa_p, size_p);
-		ipa3_iommu_map(cb->iommu_domain,
-			iova_p, pa_p, size_p,
-			IOMMU_READ | IOMMU_WRITE | IOMMU_MMIO);
-	}
 
 	ipa3_ctx->uc_pdev = dev;
 
