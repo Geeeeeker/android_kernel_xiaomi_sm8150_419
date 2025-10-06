@@ -541,12 +541,7 @@ static inline QDF_STATUS wlan_ipa_wdi_init(struct wlan_ipa_priv *ipa_ctx)
 
 	if (QDF_IPA_WDI_INIT_OUT_PARAMS_IS_UC_READY(&out)) {
 		ipa_debug("IPA uC READY");
-#if 1 //FIXME
-		ipa_err("disable wdi offload for sm8150-kernel419");
-		ipa_ctx->uc_loaded = false;
-#else
 		ipa_ctx->uc_loaded = true;
-#endif
 	} else {
 		ipa_info("IPA uc not ready");
 		return QDF_STATUS_E_BUSY;
