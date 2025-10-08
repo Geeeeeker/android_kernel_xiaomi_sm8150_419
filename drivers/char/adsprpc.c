@@ -689,7 +689,7 @@ static void fastrpc_buf_free(struct fastrpc_buf *buf, int cache)
 		VERIFY(err, fl->sctx != NULL);
 		if (err)
 			goto bail;
-		if (fl->sctx->smmu.cb && fl->cid != SDSP_DOMAIN_ID)
+		if (fl->sctx->smmu.cb)
 			buf->phys &= ~((uint64_t)fl->sctx->smmu.cb << 32);
 		cid = fl->cid;
 		VERIFY(err, cid >= ADSP_DOMAIN_ID && cid < NUM_CHANNELS);
@@ -1133,8 +1133,7 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd,
 		map->phys = sg_dma_address(map->table->sgl);
 
 		if (sess->smmu.cb) {
-			if (fl->cid != SDSP_DOMAIN_ID)
-				map->phys += ((uint64_t)sess->smmu.cb << 32);
+			map->phys += ((uint64_t)sess->smmu.cb << 32);
 			for_each_sg(map->table->sgl, sgl, map->table->nents,
 				sgl_index)
 				map->size += sg_dma_len(sgl);
@@ -1266,7 +1265,7 @@ static int fastrpc_buf_alloc(struct fastrpc_file *fl, size_t size,
 			current->comm, __func__, size, buf->virt);
 		goto bail;
 	}
-	if (fl->sctx->smmu.cb && fl->cid != SDSP_DOMAIN_ID)
+	if (fl->sctx->smmu.cb)
 		buf->phys += ((uint64_t)fl->sctx->smmu.cb << 32);
 	trace_fastrpc_dma_alloc(cid, buf->phys, size,
 		dma_attr, (int)rflags);
@@ -5035,18 +5034,7 @@ static int fastrpc_cb_probe(struct device *dev)
 						"dma-coherent");
 	sess->smmu.secure = of_property_read_bool(dev->of_node,
 						"qcom,secure-context-bank");
-	/* Software workaround for SMMU interconnect HW bug */
-	if (cid == SDSP_DOMAIN_ID) { //FIXME
-		sess->smmu.cb = iommuspec.args[0] & 0x3;
-		VERIFY(err, sess->smmu.cb);
-		if (err)
-			goto bail;
-		/*start += ((uint64_t)sess->smmu.cb << 32);*/
-		dma_addr_pool[0] += ((uint64_t)sess->smmu.cb << 32);
-		dma_set_mask(dev, DMA_BIT_MASK(34));
-	} else {
-		sess->smmu.cb = iommuspec.args[0] & 0xf;
-	}
+	sess->smmu.cb = iommuspec.args[0] & 0xf;
 	sess->smmu.dev = dev;
 	sess->smmu.dev_name = dev_name(dev);
 	sess->smmu.enabled = 1;
