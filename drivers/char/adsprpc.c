@@ -5001,6 +5001,7 @@ static int fastrpc_cb_probe(struct device *dev)
 	int err = 0, cid = -1, i = 0;
 	u32 sharedcb_count = 0, j = 0;
 	uint32_t dma_addr_pool[2] = {0, 0};
+	dma_addr_t start;
 
 	VERIFY(err, NULL != (name = of_get_property(dev->of_node,
 					 "label", NULL)));
@@ -5036,26 +5037,39 @@ static int fastrpc_cb_probe(struct device *dev)
 	sess->smmu.secure = of_property_read_bool(dev->of_node,
 						"qcom,secure-context-bank");
 
+	/* first, read iommu address for workaround to work*/
+	of_property_read_u32_array(dev->of_node, "qcom,iommu-dma-addr-pool",
+			dma_addr_pool, 2);
+	pr_info("adsprpc: fastrpc_cb_probe: initial dma_addr_pool[0]=0x%x dma_addr_pool[1]=0x%x\n",
+				dma_addr_pool[0], dma_addr_pool[1]);
+
 	/* Software workaround for SMMU interconnect HW bug */
+	start = (uint32_t)dma_addr_pool[0];
 	if (cid == SDSP_DOMAIN_ID) {
-		pr_info("adsprpc: %s: SDSP domain detected (cid=%d)\n",
-				__func__, cid);
+		pr_info("adsprpc: fastrpc_cb_probe: SDSP domain detected (cid=%d)\n", cid);
+		pr_info("adsprpc: fastrpc_cb_probe: Raw IOMMU arg=0x%x\n", iommuspec.args[0]);
 		sess->smmu.cb = iommuspec.args[0] & 0x3;
-		pr_info("adsprpc: %s: Raw IOMMU arg=0x%x, extracted cb=0x%x\n",
-		__func__, iommuspec.args[0], sess->smmu.cb);
+		pr_info("adsprpc: fastrpc_cb_probe: Extracted CB (masked with 0x3) = 0x%x\n", sess->smmu.cb);
 		VERIFY(err, sess->smmu.cb);
-		if (err)
+		if (err) {
+			pr_err("adsprpc: fastrpc_cb_probe: Invalid CB value (0x%x) for cid=%d\n",
+				sess->smmu.cb, cid);
 			goto bail;
-		dma_addr_pool[0] += ((uint64_t)sess->smmu.cb << 32);
-		pr_info("adsprpc: %s: dma_addr_pool[0] after CB shift: 0x%llx\n",
-		__func__, (unsigned long long)dma_addr_pool[0]);
+			}
+		start += ((uint64_t)sess->smmu.cb << 32);
+		pr_info("adsprpc: fastrpc_cb_probe: start after CB shift: 0x%llx\n", start);
+
 		dma_set_mask(dev, DMA_BIT_MASK(34));
-		pr_info("adsprpc: %s: DMA mask set to 34 bits\n", __func__);
+		pr_info("adsprpc: fastrpc_cb_probe: DMA mask set to 34 bits\n");
 	} else {
 		sess->smmu.cb = iommuspec.args[0] & 0xf;
-		pr_info("adsprpc: %s: Non-SDSP domain (cid=%d), cb=0x%x\n",
-		__func__, cid, sess->smmu.cb);
+		pr_info("adsprpc: fastrpc_cb_probe: Non-SDSP domain (cid=%d), CB (masked with 0xF) = 0x%x\n",
+			cid, sess->smmu.cb);
 	}
+
+	me->max_size_limit = (dma_addr_pool[1] == 0 ? 0x78000000 :
+			dma_addr_pool[1]);
+
 	sess->smmu.dev = dev;
 	sess->smmu.dev_name = dev_name(dev);
 	sess->smmu.enabled = 1;
@@ -5066,11 +5080,6 @@ static int fastrpc_cb_probe(struct device *dev)
 
 	dma_set_max_seg_size(sess->smmu.dev, DMA_BIT_MASK(32));
 	dma_set_seg_boundary(sess->smmu.dev, (unsigned long)DMA_BIT_MASK(64));
-
-	of_property_read_u32_array(dev->of_node, "qcom,iommu-dma-addr-pool",
-			dma_addr_pool, 2);
-	me->max_size_limit = (dma_addr_pool[1] == 0 ? 0x78000000 :
-			dma_addr_pool[1]);
 
 	if (of_get_property(dev->of_node, "shared-cb", NULL) != NULL) {
 		err = of_property_read_u32(dev->of_node, "shared-cb",
