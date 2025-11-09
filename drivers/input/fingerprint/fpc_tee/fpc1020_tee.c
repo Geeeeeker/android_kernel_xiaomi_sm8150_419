@@ -24,6 +24,9 @@
  * modify it under the terms of the GNU General Public License Version 2
  * as published by the Free Software Foundation.
  */
+
+#define DEBUG
+
 #include <linux/atomic.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
