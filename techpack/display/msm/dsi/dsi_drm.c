@@ -203,11 +203,6 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 	struct drm_notify_data g_notify_data;
 	int power_mode = 0;
 
-	power_mode = sde_connector_get_lp(c_bridge->display->drm_conn);
-	g_notify_data.data = &power_mode;
-	g_notify_data.id = MSM_DRM_PRIMARY_DISPLAY;
-	drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
-
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
 		return;
@@ -217,6 +212,11 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 		DSI_ERR("Incorrect bridge details\n");
 		return;
 	}
+
+	power_mode = sde_connector_get_lp(c_bridge->display->drm_conn);
+	g_notify_data.data = &power_mode;
+	g_notify_data.id = MSM_DRM_PRIMARY_DISPLAY;
+	drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
 
 	if (bridge->encoder->crtc->state->active_changed)
 		atomic_set(&c_bridge->display->panel->esd_recovery_pending, 0);
@@ -417,15 +417,15 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 	struct drm_notify_data g_notify_data;
 	int power_mode = 0;
 
-	power_mode = sde_connector_get_lp(c_bridge->display->drm_conn);
-	g_notify_data.data = &power_mode;
-	g_notify_data.id = MSM_DRM_PRIMARY_DISPLAY;
-	drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
-
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
 		return;
 	}
+
+	power_mode = sde_connector_get_lp(c_bridge->display->drm_conn);
+	g_notify_data.data = &power_mode;
+	g_notify_data.id = MSM_DRM_PRIMARY_DISPLAY;
+	drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
 
 	SDE_ATRACE_BEGIN("dsi_bridge_post_disable");
 	SDE_ATRACE_BEGIN("dsi_display_disable");
