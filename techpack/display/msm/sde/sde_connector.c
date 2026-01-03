@@ -783,7 +783,7 @@ struct sde_connector_dyn_hdr_metadata *sde_connector_get_dyn_hdr_meta(
 	return &c_state->dyn_hdr_meta;
 }
 
-#if defined(CONFIG_MACH_XIAOMI_SM8150)
+#if defined(CONFIG_MACH_XIAOMI_SM8150) && defined(CONFIG_MACH_XIAOMI_VAYU)
 static int dsi_display_write_panel(struct dsi_display *display,
 				struct dsi_panel_cmd_set *cmd_sets)
 {

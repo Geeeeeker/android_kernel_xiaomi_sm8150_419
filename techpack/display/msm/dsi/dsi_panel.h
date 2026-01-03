@@ -270,8 +270,10 @@ struct dsi_panel {
 	struct dsi_panel_cmd_set elvss_dimming_offset;
 	struct dsi_panel_cmd_set hbm_fod_on;
 	struct dsi_panel_cmd_set hbm_fod_off;
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
 	struct dsi_panel_cmd_set hbm_fod_off_doze_hbm_on;
 	struct dsi_panel_cmd_set hbm_fod_off_doze_lbm_on;
+#endif
 
 	bool fod_backlight_flag;
 	u32 fod_target_backlight;

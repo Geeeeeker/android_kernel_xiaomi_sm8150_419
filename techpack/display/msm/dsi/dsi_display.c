@@ -7883,10 +7883,12 @@ int dsi_display_enable(struct dsi_display *display)
 			pr_info("fod hbm on change to %x\n", ((u8 *)panel->hbm_fod_on.cmds[4].msg.tx_buf)[1]);
 			((u8 *)panel->hbm_fod_off.cmds[6].msg.tx_buf)[1] = panel->elvss_dimming_cmds.rbuf[0];
 			pr_info("fod hbm off change to %x\n", ((u8 *)panel->hbm_fod_off.cmds[6].msg.tx_buf)[1]);
+#if defined(CONFIG_MACH_XIAOMI_VAYU)
 			((u8 *)panel->hbm_fod_off_doze_hbm_on.cmds[6].msg.tx_buf)[1] = panel->elvss_dimming_cmds.rbuf[0];
 			pr_info("fod hbm off doze hbm on change to %x\n", ((u8 *)panel->hbm_fod_off_doze_hbm_on.cmds[6].msg.tx_buf)[1]);
 			((u8 *)panel->hbm_fod_off_doze_lbm_on.cmds[6].msg.tx_buf)[1] = panel->elvss_dimming_cmds.rbuf[0];
 			pr_info("fod hbm off doze lbm on change to %x\n", ((u8 *)panel->hbm_fod_off_doze_lbm_on.cmds[6].msg.tx_buf)[1]);
+#endif
 		}
 
 		dsi_panel_release_panel_lock(display->panel);

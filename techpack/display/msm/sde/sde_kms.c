@@ -1214,7 +1214,7 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 			pr_err("Connector Post kickoff failed rc=%d\n",
 					 rc);
 		}
-#if defined(CONFIG_MACH_XIAOMI_SM8150)
+#if defined(CONFIG_MACH_XIAOMI_SM8150) && defined(CONFIG_MACH_XIAOMI_VAYU)
 		sde_connector_fod_notify(connector);
 #endif
 	}
