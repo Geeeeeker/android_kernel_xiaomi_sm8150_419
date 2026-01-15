@@ -752,7 +752,7 @@
 				level1_rt1_rd0: level1-rt1-rd0 {
 					cell-index = <10>;
 					node-name = "level1-rt1-rd0";
-					parent-name = <&level2_rt1_rd>;
+					parent-node = <&level2_rt1_rd>;
 					traffic-merge-type =
 					<CAM_CPAS_TRAFFIC_MERGE_SUM>;
 				};
@@ -760,7 +760,7 @@
 				level1_nrt0_wr0: level1-nrt0-wr0 {
 					cell-index = <11>;
 					node-name = "level1-nrt0-wr0";
-					parent-name = <&level2_nrt0_wr>;
+					parent-node = <&level2_nrt0_wr>;
 					traffic-merge-type =
 					<CAM_CPAS_TRAFFIC_MERGE_SUM>;
 				};
@@ -768,7 +768,7 @@
 				level1_nrt0_rd0: level1-nrt0-rd0 {
 					cell-index = <12>;
 					node-name = "level1-nrt0-rd0";
-					parent-name = <&level2_nrt0_rd>;
+					parent-node = <&level2_nrt0_rd>;
 					traffic-merge-type =
 					<CAM_CPAS_TRAFFIC_MERGE_SUM>;
 				};
