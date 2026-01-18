@@ -176,7 +176,7 @@ static inline int32_t spi_read_write(struct spi_device *client, uint8_t *buf, si
 		.len    = len,
 	};
 
-	memcpy(ts->xbuf, buf, len);
+	memcpy(ts->xbuf, buf, len + DUMMY_BYTES);
 
 	switch (rw) {
 		case NVTREAD:
@@ -1890,7 +1890,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		return -ENOMEM;
 	}
 
-	ts->xbuf = (uint8_t *)kzalloc((NVT_TRANSFER_LEN+1), GFP_KERNEL);
+	ts->xbuf = (uint8_t *)kzalloc((NVT_TRANSFER_LEN+1+DUMMY_BYTES), GFP_KERNEL);
 	if(ts->xbuf == NULL) {
 		NVT_ERR("kzalloc for xbuf failed!\n");
 		if (ts) {
