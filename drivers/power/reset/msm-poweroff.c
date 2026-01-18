@@ -495,7 +495,13 @@ static void msm_restart_prepare(const char *cmd)
 	else
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
 
+#if defined(CONFIG_MACH_XIAOMI_SM8150)
+	if (in_panic) {
+		qpnp_pon_set_restart_reason(PON_RESTART_REASON_PANIC);
+	} else if (cmd != NULL) {
+#else
 	if (cmd != NULL) {
+#endif
 		if (!strncmp(cmd, "bootloader", 10)) {
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_BOOTLOADER);
@@ -531,8 +537,16 @@ static void msm_restart_prepare(const char *cmd)
 		} else if (!strncmp(cmd, "edl", 3)) {
 			enable_emergency_dload_mode();
 		} else {
+#if defined(CONFIG_MACH_XIAOMI_SM8150)
+			qpnp_pon_set_restart_reason(PON_RESTART_REASON_NORMAL);
+#endif
 			__raw_writel(0x77665501, restart_reason);
 		}
+#if defined(CONFIG_MACH_XIAOMI_SM8150)
+	} else {
+		qpnp_pon_set_restart_reason(PON_RESTART_REASON_NORMAL);
+		__raw_writel(0x77665501, restart_reason);
+#endif
 	}
 
 	flush_cache_all();
