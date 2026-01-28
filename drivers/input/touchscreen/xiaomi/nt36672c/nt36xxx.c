@@ -2543,17 +2543,23 @@ static int nvt_drm_notifier_callback(struct notifier_block *self, unsigned long 
 
 	if (evdata && ts_data) {
 		blank = evdata->data;
+#if NVT_DEBUG
 		NVT_LOG("%s: event:%lu,blank:%u\n", event, blank);
+#endif
 
 		if (event == DRM_EARLY_EVENT_BLANK) {
 			if (*blank == DRM_BLANK_POWERDOWN) {
+#if NVT_DEBUG
 				NVT_LOG("event=%lu, *blank=%d\n", event, *blank);
+#endif
 				flush_workqueue(ts_data->event_wq);
 				nvt_ts_suspend(&ts_data->client->dev);
 			}
 		} else if (event == DRM_EVENT_BLANK) {
 			if (*blank == DRM_BLANK_UNBLANK) {
+#if NVT_DEBUG
 				NVT_LOG("event=%lu, *blank=%d\n", event, *blank);
+#endif
 				flush_workqueue(ts_data->event_wq);
 				queue_work(ts_data->event_wq, &ts_data->resume_work);
 			}
