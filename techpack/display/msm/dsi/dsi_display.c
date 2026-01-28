@@ -6906,11 +6906,13 @@ int dsi_display_set_mode(struct dsi_display *display,
 		goto error;
 	}
 
+#if !defined(CONFIG_MACH_XIAOMI_SM8150)
 	DSI_INFO("mdp_transfer_time_us=%d us\n",
 			adj_mode.priv_info->mdp_transfer_time_us);
 	DSI_INFO("hactive= %d,vactive= %d,fps=%d\n",
 			timing.h_active, timing.v_active,
 			timing.refresh_rate);
+#endif
 
 	memcpy(display->panel->cur_mode, &adj_mode, sizeof(adj_mode));
 error:
