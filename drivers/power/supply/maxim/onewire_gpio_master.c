@@ -22,10 +22,20 @@
 #include <linux/device.h>
 #include <linux/spinlock.h>
 
+#define OW_DEBUG 0
+
+#define ow_err pr_err
+#define ow_log_ls pr_info
+
+#if OW_DEBUG
 #define ow_info pr_err
 #define ow_dbg pr_err
-#define ow_err pr_err
 #define ow_log pr_err
+#else
+#define ow_info(fmt, ...) do { } while (0)
+#define ow_dbg(fmt, ...) do { } while (0)
+#define ow_log(fmt, ...) do { } while (0)
+#endif
 
 #define DRV_STRENGTH_16MA (0x7 << 6)
 #define DRV_STRENGTH_4MA (0x1 << 6)
@@ -401,7 +411,7 @@ static int onewire_gpio_probe(struct platform_device *pdev)
 	struct onewire_gpio_data *onewire_data;
 	struct kobject *p;
 
-	ow_log("onewire probe entry");
+	ow_log_ls("onewire probe entry");
 
 	if (!pdev->dev.of_node || !of_device_is_available(pdev->dev.of_node))
 		return -ENODEV;
@@ -493,6 +503,7 @@ static int onewire_gpio_probe(struct platform_device *pdev)
 		ow_err("Failed to create sysfs link\n");
 		goto onewire_syfs_create_link_err;
 	}
+	ow_log_ls("onewire probe exit");
 	return 0;
 onewire_syfs_create_link_err:
 	if (gpio_is_valid(onewire_data->ow_gpio))
@@ -565,7 +576,7 @@ static int __init onewire_gpio_init(void)
 	int retval;
 	onewire_gpio_detected = false;
 
-	ow_log("onewire gpio init entry.");
+	ow_log_ls("onewire gpio init entry.");
 
 	onewire_class = class_create(THIS_MODULE, "onewire");
 	if (IS_ERR(onewire_class)) {
@@ -589,7 +600,7 @@ class_unreg:
 
 static void __exit onewire_gpio_exit(void)
 {
-	ow_log("onewire gpio exit entry.");
+	ow_log_ls("onewire gpio exit entry.");
 	platform_driver_unregister(&onewire_gpio_driver);
 
 	unregister_chrdev(onewire_major, "onewirectrl");

@@ -20,11 +20,11 @@
 #include <dsp/q6common.h>
 #include <dsp/q6core.h>
 #include <dsp/msm-audio-event-notify.h>
-#ifdef CONFIG_MACH_XIAOMI_SM8150
+#if defined(CONFIG_MACH_XIAOMI_SM8150) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 #include <dsp/apr_elliptic.h>
 #endif
 /* for mius start */
-#ifdef CONFIG_US_PROXIMITY
+#if defined(CONFIG_US_PROXIMITY) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 #include <dsp/apr_mius.h>
 #endif
 /* for mius end */
@@ -1236,7 +1236,7 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 		else
 			return -EINVAL;
 /* for mius start */
-#ifdef CONFIG_US_PROXIMITY
+#if defined(CONFIG_US_PROXIMITY) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 	} else if (data->opcode == MI_ULTRASOUND_OPCODE) {
 		if (NULL != data->payload)
 		{
@@ -1261,7 +1261,7 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 		atomic_set(&this_afe.clk_state, 0);
 		atomic_set(&this_afe.clk_status, 0);
 		wake_up(&this_afe.lpass_core_hw_wait);
-#ifdef CONFIG_MACH_XIAOMI_SM8150
+#if defined(CONFIG_MACH_XIAOMI_SM8150) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 	} else if (data->opcode == ULTRASOUND_OPCODE) {
 		if (NULL != data->payload)
 			elliptic_process_apr_payload(data->payload);
@@ -1269,7 +1269,7 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 			pr_err("[EXPORT_SYMBOLLUS]: payload ptr is Invalid");
 #endif
 	/* for mius start */
-#ifdef CONFIG_US_PROXIMITY
+#if defined(CONFIG_US_PROXIMITY) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 	} else if (data->opcode == MI_ULTRASOUND_OPCODE) {
 		if (NULL != data->payload)
 		{
@@ -2959,7 +2959,7 @@ static void afe_send_cal_spv4_tx(int port_id)
 
 }
 
-#ifdef CONFIG_MACH_XIAOMI_SM8150
+#if defined(CONFIG_MACH_XIAOMI_SM8150) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 afe_ultrasound_state_t elus_afe = {
 	.ptr_apr= &this_afe.apr,
 	.ptr_status= &this_afe.status,
@@ -2971,7 +2971,7 @@ EXPORT_SYMBOL(elus_afe);
 #endif
 
 /* for mius start */
-#ifdef CONFIG_US_PROXIMITY
+#if defined(CONFIG_US_PROXIMITY) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 afe_mi_ultrasound_state_t mius_afe = {
 	.ptr_apr= &this_afe.apr,
 	.ptr_status= &this_afe.status,

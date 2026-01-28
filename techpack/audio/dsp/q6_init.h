@@ -19,11 +19,11 @@ int avtimer_init(void);
 #if defined(CONFIG_MSM_CSPL) || defined(CONFIG_MSM_CSPL_V2)
 int crus_sp_init(void);
 #endif
-#ifdef CONFIG_MACH_XIAOMI_SM8150
+#if defined(CONFIG_MACH_XIAOMI_SM8150) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 int elliptic_driver_init(void);
 #endif
 /* for mius start */
-#ifdef CONFIG_US_PROXIMITY
+#if defined(CONFIG_US_PROXIMITY) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 int mius_driver_init(void);
 #endif
 /* for mius end */
@@ -68,11 +68,11 @@ void q6asm_exit(void);
 void afe_exit(void);
 void adm_exit(void);
 void adsp_err_exit(void);
-#ifdef CONFIG_MACH_XIAOMI_SM8150
+#if defined(CONFIG_MACH_XIAOMI_SM8150) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 int elliptic_driver_exit(void);
 #endif
 /* for mius start */
-#ifdef CONFIG_US_PROXIMITY
+#if defined(CONFIG_US_PROXIMITY) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 int mius_driver_exit(void);
 #endif
 /* for mius end */

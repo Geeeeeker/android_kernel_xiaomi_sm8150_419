@@ -31,7 +31,7 @@
 #include <dsp/q6core.h>
 #include <dsp/q6common.h>
 #include <dsp/audio_cal_utils.h>
-#ifdef CONFIG_MACH_XIAOMI_SM8150
+#if defined(CONFIG_MACH_XIAOMI_SM8150) && !defined(CONFIG_MACH_XIAOMI_VAYU) 
 #include <dsp/apr_elliptic.h>
 #include <elliptic/elliptic_mixer_controls.h>
 #endif
@@ -31776,11 +31776,11 @@ static int msm_routing_probe(struct snd_soc_component *component)
 	snd_soc_add_component_controls(component,
 			port_multi_channel_map_mixer_controls,
 			ARRAY_SIZE(port_multi_channel_map_mixer_controls));
-#ifdef CONFIG_MACH_XIAOMI_SM8150
+#if defined(CONFIG_MACH_XIAOMI_SM8150) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 	elliptic_add_component_controls(component);
 #endif
 	/* for mius start */
-#ifdef CONFIG_US_PROXIMITY
+#if defined(CONFIG_US_PROXIMITY) && !defined(CONFIG_MACH_XIAOMI_VAYU)
 	mius_add_component_controls(component);
 #endif
 	/* for mius end */

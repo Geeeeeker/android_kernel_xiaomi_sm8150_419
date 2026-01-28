@@ -33,10 +33,20 @@
 #include <linux/regmap.h>
 #include <linux/random.h>
 
+#define DS_DEBUG 0
+
+#define ds_err pr_err
+#define ds_log_ls pr_info
+
+#if DS_DEBUG
 #define ds_info pr_err
 #define ds_dbg pr_err
-#define ds_err pr_err
 #define ds_log pr_err
+#else
+#define ds_info(fmt, ...) do { } while (0)
+#define ds_dbg(fmt, ...) do { } while (0)
+#define ds_log(fmt, ...) do { } while (0)
+#endif
 
 struct ds28e16_data {
 	struct platform_device *pdev;
@@ -626,9 +636,9 @@ int DS28E16_cmd_device_disable_slave(int op, unsigned char *password)
 /// 'Compute and Read Page Authentication' command
 ///
 /// @param[in] anon - boolean parameter
-/// @param[in] pg - Page number   2,¿¿¿? 0,page0; 1,page1;
+/// @param[in] pg - Page number   2,ï¿½ï¿½ï¿½? 0,page0; 1,page1;
 /// @param[in] challenge_slave
-/// @param[out] hmac   ¿¿¿¿¿¿¿?2¿¿¿?///
+/// @param[out] hmac   ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½?2ï¿½ï¿½ï¿½?///
 /// @return
 /// DS_TRUE - command successful @n
 /// DS_FALSE - command failed
@@ -707,8 +717,8 @@ int DS28E16_cmd_computeReadPageAuthentication_slave(
 ///
 /// @param[in] anon - boolean parameter
 /// @param[in] bdconst - boolean parameter
-/// @param[in] pg - Page number   ¿¿
-/// @param[in] partial secret   32¿¿¿¿¿¿
+/// @param[in] pg - Page number   ï¿½ï¿½
+/// @param[in] partial secret   32ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 ///
 /// @return
 /// DS_TRUE - command successful @n
@@ -1784,7 +1794,7 @@ static void authentic_work(struct work_struct *work)
 	if (pval.intval != true) {
 		retry_authentic++;
 		if (retry_authentic < AUTHENTIC_COUNT_MAX) {
-			ds_log("battery authentic work begin to restart, retry = %d\n",
+			ds_log_ls("battery authentic work begin to restart, retry = %d\n",
 			       retry_authentic);
 			schedule_delayed_work(
 				&ds28e16_data->authentic_work,
@@ -1792,10 +1802,10 @@ static void authentic_work(struct work_struct *work)
 		}
 
 		if (retry_authentic == AUTHENTIC_COUNT_MAX) {
-			ds_log("authentic result is %d\n", pval.intval);
+			ds_log_ls("authentic result is %d\n", pval.intval);
 		}
 	} else {
-		ds_log("authentic result is %d\n", pval.intval);
+		ds_log_ls("authentic result is %d\n", pval.intval);
 	}
 }
 
@@ -1807,7 +1817,7 @@ static int ds28e16_probe(struct platform_device *pdev)
 		0,
 	};
 
-	ds_log("%s entry.", __func__);
+	ds_log_ls("%s entry.", __func__);
 	ds_dbg("platform_device is %s", pdev->name);
 	if (strcmp(pdev->name, "soc:maxim_ds28e16_slave") != 0)
 		return -ENODEV;
@@ -1861,6 +1871,7 @@ static int ds28e16_probe(struct platform_device *pdev)
 		schedule_delayed_work(&ds28e16_data->authentic_work,
 				      msecs_to_jiffies(0));
 	}
+	ds_log_ls("%s exit.", __func__);
 	return 0;
 
 ds28e16_create_group_err:
@@ -1921,14 +1932,14 @@ static struct platform_driver ds28e16_driver = {
 
 static int __init ds28e16_init(void)
 {
-	ds_log("%s entry.", __func__);
+	ds_log_ls("%s entry.", __func__);
 
 	return platform_driver_register(&ds28e16_driver);
 }
 
 static void __exit ds28e16_exit(void)
 {
-	ds_log("%s entry.", __func__);
+	ds_log_ls("%s entry.", __func__);
 	platform_driver_unregister(&ds28e16_driver);
 }
 
