@@ -1417,7 +1417,7 @@ static int sde_rotator_calc_perf(struct sde_rot_mgr *mgr,
 	if (mgr->max_rot_clk && (perf->clk_rate > mgr->max_rot_clk)) {
 		SDEROT_ERR("invalid clock:%ld exceeds max:%ld allowed\n",
 				perf->clk_rate, mgr->max_rot_clk);
-		return -EINVAL;
+		// return -EINVAL;
 	}
 
 	read_bw =  sde_rotator_calc_buf_bw(in_fmt, config->input.width,
