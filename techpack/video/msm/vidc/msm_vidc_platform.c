@@ -1734,7 +1734,7 @@ static struct msm_vidc_common_data sm8150_common_data[] = {
 		.value = 3916800,       /*
 					 * 1920x1088/256 MBs@480fps. It is less
 					 * any other usecases (ex:
-					 * 3840x2176@120fps, 4096x2176@96ps,
+					 * 3840x2160@120fps, 4096x2160@96ps,
 					 * 7680x4320@30fps)
 					 */
 	},
@@ -1772,7 +1772,7 @@ static struct msm_vidc_common_data sm8150_common_data[] = {
 	},
 	{
 		.key = "qcom,decode-batching",
-		.value = 1,
+		.value = 0,
 	},
 	{
 		.key = "qcom,batch-timeout",
