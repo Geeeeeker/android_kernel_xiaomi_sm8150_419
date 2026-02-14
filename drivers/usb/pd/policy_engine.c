@@ -1900,15 +1900,23 @@ static void handle_vdm_rx(struct usbpd *pd, struct rx_msg *rx_msg)
 	case SVDM_CMD_TYPE_RESP_NAK:
 		usbpd_info(&pd->dev, "VDM NAK received for SVID:0x%04x command:0x%x\n",
 				svid, cmd);
+
+#ifdef CONFIG_MACH_XIAOMI_SM8150
+		switch (cmd) {
+		case USBPD_SVDM_DISCOVER_IDENTITY:
+		case USBPD_SVDM_DISCOVER_SVIDS:
+			pd->uvdm_state = USBPD_UVDM_NAN_ACK;
+			break;
+		default:
+			break;
+		}
+#endif
 		break;
 
 	case SVDM_CMD_TYPE_RESP_BUSY:
 		switch (cmd) {
 		case USBPD_SVDM_DISCOVER_IDENTITY:
 		case USBPD_SVDM_DISCOVER_SVIDS:
-#ifdef CONFIG_MACH_XIAOMI_SM8150
-			pd->uvdm_state = USBPD_UVDM_NAN_ACK;
-#endif
 			if (!pd->vdm_tx_retry) {
 				usbpd_err(&pd->dev, "Discover command %d VDM was unexpectedly freed\n",
 						cmd);
