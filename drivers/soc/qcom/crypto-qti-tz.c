@@ -40,6 +40,8 @@ int crypto_qti_program_key(struct crypto_vops_qti_entry *ice_entry,
 		u32 words[BLK_CRYPTO_MAX_WRAPPED_KEY_SIZE / sizeof(u32)];
 	} key_new;
 
+	pr_info("%s: Entering (slot: %u)\n", __func__, slot);
+
 	err = qtee_shmbridge_allocate_shm(key->size, &shm);
 	if (err)
 		return -ENOMEM;
@@ -75,8 +77,13 @@ int crypto_qti_program_key(struct crypto_vops_qti_entry *ice_entry,
 	if (err)
 		pr_err("%s:SCM call Error: 0x%x slot %d\n",
 				__func__, err, slot);
+	else
+		pr_err("%s:SCM call done: 0x%x slot %d\n",
+				__func__, err, slot);
 
 	qtee_shmbridge_free_shm(&shm);
+
+	pr_info("%s: Exiting with status %d\n", __func__, err);
 
 	return err;
 }
@@ -87,6 +94,8 @@ int crypto_qti_invalidate_key(
 	int err = 0;
 	uint32_t smc_id = 0;
 	struct scm_desc desc = {0};
+
+	pr_info("%s: Entering (slot: %u)\n", __func__, slot);
 
 	if (of_machine_is_compatible("qcom,sm8150")) {
 		smc_id = TZ_ES_INVALIDATE_ICE_KEY_ID;
@@ -102,6 +111,11 @@ int crypto_qti_invalidate_key(
 	err = scm_call2_noretry(smc_id, &desc);
 	if (err)
 		pr_err("%s:SCM call Error: 0x%x\n", __func__, err);
+	else
+		pr_err("%s:SCM call done: 0x%x\n", __func__, err);
+
+	pr_info("%s: Exiting with status %d\n", __func__, err);
+
 	return err;
 }
 
@@ -115,6 +129,8 @@ int crypto_qti_tz_raw_secret(const u8 *wrapped_key,
 
 	struct scm_desc desc = {0};
 	char *tzbuf_key;
+
+	pr_info("%s: Entering\n", __func__);
 
 	err = qtee_shmbridge_allocate_shm(wrapped_key_size, &shm_key);
 	if (err)
@@ -142,6 +158,8 @@ int crypto_qti_tz_raw_secret(const u8 *wrapped_key,
 	if (err) {
 		pr_err("%s failed to retrieve raw secret\n", __func__, err);
 		return err;
+	} else {
+		pr_err("%s retrieve raw secret\n", __func__, err);
 	}
 
 	dmac_inv_range(shm_secret.vaddr, shm_secret.vaddr + secret_size);
@@ -159,20 +177,24 @@ static int crypto_qti_storage_type(unsigned int *s_type)
 	char *match = (char *)strnstr(saved_command_line,
 				"androidboot.bootdevice=",
 				strlen(saved_command_line));
+	pr_info("%s: Entering\n", __func__);
 	if (match) {
 		memcpy(boot, (match + strlen("androidboot.bootdevice=")),
 			sizeof(boot) - 1);
 		if (strnstr(boot, "ufs", strlen(boot)))
 			*s_type = UFS_CE;
-
+		pr_info("%s: Detected storage type: %u\n", __func__, *s_type);
 		return 0;
 	}
+	pr_warn("%s: Could not detect storage type from command line\n", __func__);
 	return -EINVAL;
 }
 
 static int __init crypto_qti_init(void)
 {
+	pr_info("%s: Initializing Crypto QTI module\n", __func__);
 	return crypto_qti_storage_type(&storage_type);
+	pr_info("%s: Initialization finished with ret %d\n", __func__);
 }
 
 module_init(crypto_qti_init);
