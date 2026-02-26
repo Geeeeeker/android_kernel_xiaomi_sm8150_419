@@ -5,6 +5,7 @@
 // Copyright 2008 Wolfson Microelectronics PLC.
 //
 // Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
+#define DEBUG
 
 #include <sound/jack.h>
 #include <sound/soc.h>

@@ -5,6 +5,7 @@
 // Copyright 2009-2011 Wolfson Microelectronics PLC.
 //
 // Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
+#define DEBUG
 
 #include <linux/i2c.h>
 #include <linux/spi/spi.h>

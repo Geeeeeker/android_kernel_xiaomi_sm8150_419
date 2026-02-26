@@ -3,7 +3,7 @@
  *	which is common to both OSS and ALSA and OSS sound core which
  *	is used OSS or emulation of it.
  */
-
+#define DEBUG
 /*
  * First, the common part.
  */

@@ -3,6 +3,7 @@
 // soc-devres.c  --  ALSA SoC Audio Layer devres functions
 //
 // Copyright (C) 2013 Linaro Ltd
+#define DEBUG
 
 #include <linux/module.h>
 #include <linux/moduleparam.h>

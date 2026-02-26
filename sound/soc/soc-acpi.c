@@ -3,7 +3,7 @@
 // soc-apci.c - support for ACPI enumeration.
 //
 // Copyright (c) 2013-15, Intel Corporation.
-
+#define DEBUG
 #include <sound/soc-acpi.h>
 
 struct snd_soc_acpi_mach *
