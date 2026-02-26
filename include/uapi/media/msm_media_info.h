@@ -2,7 +2,7 @@
 #ifndef __MSM_MEDIA_INFO_H__
 #define __MSM_MEDIA_INFO_H__
 
-#ifdef CONFIG_ARCH_SDM845
+#ifdef CONFIG_ARCH_SM8150
 #include "msm_media_info_legacy.h"
 #elif CONFIG_ARCH_SM8150
 #include "msm_media_info_msmnile.h"

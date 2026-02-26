@@ -51,7 +51,7 @@
 #define __LINUX_V4L2_CONTROLS_H
 
 /* v4l2 controls header from kernel 4.14 */
-#ifdef CONFIG_ARCH_SDM845
+#ifdef CONFIG_ARCH_SM8150
 #include "v4l2-controls-legacy.h"
 #else
 

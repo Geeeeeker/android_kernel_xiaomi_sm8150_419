@@ -5,7 +5,7 @@
 #include <linux/types.h>
 
 /* msm_vidc_utils controls header from kernel 4.14 */
-#ifdef CONFIG_ARCH_SDM845
+#ifdef CONFIG_ARCH_SM8150
 #include "msm_vidc_utils_legacy.h"
 #else
 
