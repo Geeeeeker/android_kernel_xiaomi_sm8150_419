@@ -35,7 +35,7 @@
 	#size-cells = <2>;
 
 	chosen: chosen {
-		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 cgroup.memory=nokmem,nosocket";
+		bootargs = "log_buf_len=4M rcupdate.rcu_expedited=1 rcu_nocbs=0-7 cgroup.memory=nokmem,nosocket";
 	};
 
 	memory { device_type = "memory"; reg = <0 0 0 0>; };
