@@ -2,6 +2,7 @@
 /* Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
+#define DEBUG
 #include <linux/init.h>
 #include <linux/err.h>
 #include <linux/module.h>

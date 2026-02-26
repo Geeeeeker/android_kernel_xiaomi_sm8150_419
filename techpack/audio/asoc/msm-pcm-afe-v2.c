@@ -2,7 +2,7 @@
 /* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  */
 
-
+#define DEBUG
 #include <linux/init.h>
 #include <linux/err.h>
 #include <linux/module.h>
