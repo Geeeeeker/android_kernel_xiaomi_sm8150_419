@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         device:
-          - polaris
+          - raphael
     steps:
       - name: 安装软件包
         env:
@@ -145,7 +145,7 @@ jobs:
             KCFLAGS="-Wno-error=strict-prototypes" \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            polaris-mi845_defconfig all
+            raphael_defconfig all
 
       - name: 打包(AnyKernel3)
         run: |
