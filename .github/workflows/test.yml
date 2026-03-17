@@ -168,15 +168,20 @@ jobs:
           echo "flash_boot" >> anykernel.sh
           zip -qr9 Anykernel3-${{ matrix.device }}.zip * -x .git .github README.md *placeholder
 
-      - name: 打包(boot) - 使用预编译设备树
+      - name: 打包(boot) - 使用预编译设备树（若无法获取官方boot.img则跳过）
+        id: boot
         run: |
           git clone https://android.googlesource.com/platform/system/tools/mkbootimg --depth=1 mkbootimg
           cd mkbootimg
-          # 获取 LineageOS 官方 boot.img 并解包获取参数
-          boot_url=$(curl -LSs https://download.lineageos.org/api/v2/devices/${{ matrix.device }}/builds | jq -r '.[0].files[1].url')
-          curl -LSs $boot_url -o boot.img
+          # 尝试从 LineageOS API 获取官方 boot.img 的下载地址
+          BOOT_URL=$(curl -fLSs "https://download.lineageos.org/api/v2/devices/${{ matrix.device }}/builds" 2>/dev/null | jq -r '.[0].files[1].url // empty') || true
+          if [ -z "$BOOT_URL" ]; then
+            echo "::warning::Unable to fetch boot.img URL from LineageOS API. Skipping boot.img generation."
+            exit 0
+          fi
+          echo "Downloading boot.img from $BOOT_URL"
+          curl -LSs "$BOOT_URL" -o boot.img
           ./unpack_bootimg.py --out out --boot_img boot.img --format mkbootimg > mkbootimg_args.txt
-          # 读取生成的 mkbootimg 参数行
           mkbootimg_args=$(cat mkbootimg_args.txt)
           # 用我们编译的内核替换解包出来的 kernel
           cp ../kernel/out/arch/arm64/boot/Image.gz out/kernel
@@ -190,6 +195,7 @@ jobs:
           fi
           # 执行打包命令
           eval "./mkbootimg.py $mkbootimg_args -o boot-lineage-${{ matrix.device }}.img"
+          echo "bootimg_generated=true" >> $GITHUB_OUTPUT
 
       - name: 上传文件 (AnyKernel3)
         uses: actions/upload-artifact@v5
@@ -198,6 +204,7 @@ jobs:
           path: ak3/Anykernel3-${{ matrix.device }}.zip
 
       - name: 上传文件 (boot.img)
+        if: steps.boot.outputs.bootimg_generated == 'true'
         uses: actions/upload-artifact@v5
         with:
           name: kernel-${{ matrix.device }}-boot
