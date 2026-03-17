@@ -1,4 +1,4 @@
-name: 编译内核 (使用预编译 dtb + dtbo)
+name: 编译内核
 
 on:
   push:
@@ -54,10 +54,10 @@ jobs:
           restore-keys: kernel-${{ matrix.device }}
           max-size: 5G
 
-      - name: 配置内核基础参数 (Kprobes/OverlayFS/LTO/禁用btrfs等)
+      - name: 配置内核基础参数 (Kprobes/OverlayFS/LTO等)
         working-directory: kernel
         run: |
-          DEFCONFIG="arch/arm64/configs/raphael_defconfig"
+          DEFCONFIG="arch/arm64/configs/rapheal_defconfig"
           
           # 开启 Kprobes
           echo "CONFIG_MODULES=y" >> $DEFCONFIG
@@ -76,18 +76,18 @@ jobs:
           
           # 禁用 CC_WERROR
           echo "CONFIG_CC_WERROR=n" >> $DEFCONFIG
-
-          # 禁用 btrfs（避免编译错误）
-          sed -i '/CONFIG_BTRFS_FS/d' $DEFCONFIG
-          echo "# CONFIG_BTRFS_FS is not set" >> $DEFCONFIG
+          # 启用 BPF JIT 以解决 bpf_jit_blinding_enabled 未定义错误
+          echo "CONFIG_BPF_JIT=y" >> $DEFCONFIG
+          echo "# CONFIG_BPF_JIT_ALWAYS_ON is not set" >> $DEFCONFIG
+          # 确保 BPF 系统调用开启
+          echo "CONFIG_BPF_SYSCALL=y" >> $DEFCONFIG
 
       - name: 配置 LXC 和 Docker 支持
         working-directory: kernel
         run: |
-          DEFCONFIG="arch/arm64/configs/raphael_defconfig"
+          DEFCONFIG="arch/arm64/configs/rapheal"
           rm -rf utils
           git clone https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
-
           # 移除 LXC 补丁中强制选中的越权语句
           sed -i '/select CFS_BANDWIDTH/d' utils/Kconfig
           sed -i '/select DOCKER_STATISTICS/d' utils/Kconfig
@@ -101,7 +101,6 @@ jobs:
           # 在 defconfig 显式禁用会引发代码冲突的调度器特性
           echo "# CONFIG_CFS_BANDWIDTH is not set" >> $DEFCONFIG
           echo "# CONFIG_DOCKER_STATISTICS is not set" >> $DEFCONFIG
-
           # 禁用偏执网络
           sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' $DEFCONFIG
           echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> $DEFCONFIG
@@ -109,12 +108,10 @@ jobs:
           # 显式禁用发生冲突的 Block 特性
           echo "# CONFIG_BLK_DEV_THROTTLING is not set" >> $DEFCONFIG
           echo "# CONFIG_CFQ_GROUP_IOSCHED is not set" >> $DEFCONFIG
-
-          # 修复内核源码自带的 QVR 设备树语法错误 (sdm845)
+          # 修复内核源码自带的 QVR 设备树语法错误 (sdm845) – 即使不再编译设备树，保留修改也无妨
           sed -i '/sdm845-v2-qvr-evt.dtb/d' arch/arm64/boot/dts/qcom/Makefile
           sed -i '/qvr/d' arch/arm64/boot/dts/qcom/Makefile
           sed -i '/interposer/d' arch/arm64/boot/dts/qcom/Makefile
-
           # 统一在此处应用 runc 补丁和 qtaguid 补丁
           chmod +x utils/runcpatch.sh
           if [ -f kernel/cgroup/cgroup.c ]; then
@@ -127,58 +124,13 @@ jobs:
               patch -p0 < utils/xt_qtaguid.patch
           fi
 
-      - name: 修复触摸屏驱动中的函数原型 (添加 void)
-        working-directory: kernel
-        run: |
-          FILE="drivers/input/touchscreen/xiaomi/xiaomi_touch.c"
-          if [ -f "$FILE" ]; then
-            echo "正在修复 $FILE 中的函数原型..."
-            sed -i 's/^struct class \*get_xiaomi_touch_class()/struct class *get_xiaomi_touch_class(void)/' "$FILE"
-            sed -i 's/^struct device \*get_xiaomi_touch_dev()/struct device *get_xiaomi_touch_dev(void)/' "$FILE"
-            echo "修复完成。"
-          else
-            echo "警告：$FILE 不存在，跳过"
-          fi
-
-      # ---------- 修复 hugetlbpage.c 编译错误 ----------
-      - name: 修复 hugetlbpage.c 中未声明的 ptep
-        working-directory: kernel
-        run: |
-          FILE="arch/arm64/mm/hugetlbpage.c"
-          if [ -f "$FILE" ]; then
-            echo "正在修复 $FILE 中的 ptep 未声明错误..."
-            # 将 'ptep = huge_pmd_share(' 替换为 'pte = huge_pmd_share('
-            sed -i 's/\([[:space:]]*\)ptep = huge_pmd_share(/\1pte = huge_pmd_share(/' "$FILE"
-            echo "修复完成。"
-          else
-            echo "文件 $FILE 不存在，跳过修复。"
-          fi
-
-      # ---------- 检查预编译设备树文件 ----------
-      - name: 检查预编译设备树文件是否存在
-        working-directory: kernel
-        run: |
-          PREBUILT_DTB="arch/arm64/boot/dts/qcom/sm8150-xiaomi.dtb"
-          PREBUILT_DTBO="arch/arm64/boot/dts/qcom/raphael-sm8150-overlay.dtbo"
-          if [ ! -f "$PREBUILT_DTB" ]; then
-            echo "❌ 错误：预编译设备树文件 $PREBUILT_DTB 不存在于仓库中！"
-            exit 1
-          fi
-          if [ ! -f "$PREBUILT_DTBO" ]; then
-            echo "❌ 错误：预编译设备树叠加文件 $PREBUILT_DTBO 不存在于仓库中！"
-            exit 1
-          fi
-          echo "✅ 找到预编译设备树文件：$PREBUILT_DTB 和 $PREBUILT_DTBO"
-
-      - name: 编译内核 (仅内核镜像，不编译设备树)
+      - name: 编译内核 (仅生成 Image.gz)
         working-directory: kernel
         run: |
           export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
           export KBUILD_BUILD_USER=${{ github.repository_owner }}
           export KBUILD_BUILD_HOST=github-runner
           export KBUILD_BUILD_TIMESTAMP=$(date -u -d "@$(git log -1 --format=%at)" +"%a %b %d %H:%M:%S %Z %Y")
-
-          # 配置内核
           make -j$(nproc --all) \
             CC="ccache clang" \
             ARCH=arm64 \
@@ -188,118 +140,69 @@ jobs:
             KCFLAGS="-Wno-error=strict-prototypes" \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            raphael_defconfig
+            raphael_defconfig Image.gz
 
-          # 显式禁用 btrfs（即使 defconfig 已禁用，但某些依赖可能重新启用）
-          cd out
-          ../scripts/config --file .config --disable CONFIG_BTRFS_FS
-          # 更新所有依赖配置，确保一致性
-          make -j$(nproc --all) \
-            CC="ccache clang" \
-            ARCH=arm64 \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            O=out \
-            KCFLAGS="-Wno-error=strict-prototypes" \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            olddefconfig
-          cd ..
-
-          # 仅编译内核镜像 (Image)，跳过所有 dtbs
-          make -j$(nproc --all) \
-            CC="ccache clang" \
-            ARCH=arm64 \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            O=out \
-            KCFLAGS="-Wno-error=strict-prototypes" \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            Image
-
-          # 使用预编译 dtb 生成 Image.gz-dtb
-          PREBUILT_DTB="arch/arm64/boot/dts/qcom/sm8150-xiaomi.dtb"
-          mkdir -p out/arch/arm64/boot/dts/qcom
-          cp "$PREBUILT_DTB" out/arch/arm64/boot/dts/qcom/
-
-          # 合并 Image 和 dtb 并压缩
-          cat out/arch/arm64/boot/Image out/arch/arm64/boot/dts/qcom/sm8150-xiaomi.dtb > out/arch/arm64/boot/Image-dtb
-          gzip -c out/arch/arm64/boot/Image-dtb > out/arch/arm64/boot/Image.gz-dtb
-
-          echo "✅ 成功生成 out/arch/arm64/boot/Image.gz-dtb"
-
-      # ---------- AnyKernel3 打包 (包含 dtbo) ----------
-      - name: 打包(AnyKernel3)
+      - name: 打包(AnyKernel3) - 使用预编译设备树
         run: |
           git clone https://github.com/osm0sis/AnyKernel3 --depth=1 ak3
-          cp kernel/out/arch/arm64/boot/Image.gz-dtb ak3/
-          cp kernel/arch/arm64/boot/dts/qcom/raphael-sm8150-overlay.dtbo ak3/dtbo.img
+          # 复制内核镜像
+          cp kernel/out/arch/arm64/boot/Image.gz ak3/
+          # 创建 dtb 和 dtbo 目录，并复制预编译的设备树文件
+          mkdir -p ak3/dtb ak3/dtbo
+          cp kernel/arch/arm64/boot/dts/qcom/sm8150-xiaomi.dtb ak3/dtb/dtb
+          cp kernel/arch/arm64/boot/dts/qcom/raphael-sm8150-overlay.dtbo ak3/dtbo/dtbo
           cd ak3
-          cat >anykernel.sh <<EOF
-          properties() { '
-          kernel.string=Kernel for ${{ matrix.device }}
-          device.name1=${{ matrix.device }}
-          do.devicecheck=1
-          '; }
-          ramdisk_compression=auto
-          patch_vbmeta_flag=auto
-          is_slot_device=auto
-          block=auto
-          dtbo_block=auto
-          . tools/ak3-core.sh
-          split_boot
-          flash_boot
-          flash_dtbo
-          EOF
+          # 生成 anykernel.sh，明确指定内核文件名
+          echo "properties() { '" > anykernel.sh
+          echo "kernel.string=Kernel for ${{ matrix.device }}" >> anykernel.sh
+          echo "device.name1=${{ matrix.device }}" >> anykernel.sh
+          echo "do.devicecheck=1" >> anykernel.sh
+          echo "' }" >> anykernel.sh
+          echo "kernel=Image.gz" >> anykernel.sh          # 指定内核文件名
+          echo "ramdisk_compression=auto" >> anykernel.sh
+          echo "patch_vbmeta_flag=auto" >> anykernel.sh
+          echo "is_slot_device=auto" >> anykernel.sh
+          echo "block=auto" >> anykernel.sh
+          echo ". tools/ak3-core.sh" >> anykernel.sh
+          echo "split_boot" >> anykernel.sh
+          echo "flash_boot" >> anykernel.sh
           zip -qr9 Anykernel3-${{ matrix.device }}.zip * -x .git .github README.md *placeholder
 
-      # ---------- 打包 boot 镜像 (带错误处理，避免因 API 问题导致工作流失败) ----------
-      - name: 获取 LineageOS boot.img 下载链接
-        id: get_boot
-        working-directory: kernel
-        run: |
-          set +e  # 临时关闭 errexit，我们自己处理错误
-          API_URL="https://download.lineageos.org/api/v2/devices/${{ matrix.device }}/builds"
-          echo "从 $API_URL 获取最新构建信息..."
-          JSON=$(curl -s "$API_URL")
-          # 使用 jq 查找文件名以 boot.img 结尾的文件的 url
-          BOOT_URL=$(echo "$JSON" | jq -r '.[0].files[] | select(.filename | endswith("boot.img")) | .url' | head -1)
-          if [ -z "$BOOT_URL" ] || [ "$BOOT_URL" = "null" ]; then
-            echo "警告：未找到 boot.img 下载链接，将跳过 boot 镜像生成。"
-            echo "boot_available=false" >> $GITHUB_ENV
-            exit 0
-          fi
-          echo "boot_available=true" >> $GITHUB_ENV
-          echo "boot_url=$BOOT_URL" >> $GITHUB_ENV
-          echo "✅ 获取到 boot.img 链接：$BOOT_URL"
-
-      - name: 打包(boot) - 生成新 boot 镜像
-        if: env.boot_available == 'true'
+      - name: 打包(boot) - 使用预编译设备树
         run: |
           git clone https://android.googlesource.com/platform/system/tools/mkbootimg --depth=1 mkbootimg
-          cp kernel/out/arch/arm64/boot/Image.gz-dtb mkbootimg/
           cd mkbootimg
-          curl -LSs "${{ env.boot_url }}" -o boot.img
-          mkbootimg_args=$(./unpack_bootimg.py --out out --boot_img boot.img --format mkbootimg)
-          mv Image.gz-dtb out/kernel
+          # 获取 LineageOS 官方 boot.img 并解包获取参数
+          boot_url=$(curl -LSs https://download.lineageos.org/api/v2/devices/${{ matrix.device }}/builds | jq -r '.[0].files[1].url')
+          curl -LSs $boot_url -o boot.img
+          ./unpack_bootimg.py --out out --boot_img boot.img --format mkbootimg > mkbootimg_args.txt
+          # 读取生成的 mkbootimg 参数行
+          mkbootimg_args=$(cat mkbootimg_args.txt)
+          # 用我们编译的内核替换解包出来的 kernel
+          cp ../kernel/out/arch/arm64/boot/Image.gz out/kernel
+          # 用仓库中的 dtb 替换解包出来的 dtb（如果存在）
+          cp ../kernel/arch/arm64/boot/dts/qcom/sm8150-xiaomi.dtb out/dtb 2>/dev/null || true
+          # 添加 dtbo 文件
+          cp ../kernel/arch/arm64/boot/dts/qcom/raphael-sm8150-overlay.dtbo out/dtbo
+          # 检查 mkbootimg_args 是否已包含 --dtbo，若无则追加
+          if [[ "$mkbootimg_args" != *"--dtbo"* ]]; then
+            mkbootimg_args="$mkbootimg_args --dtbo dtbo"
+          fi
+          # 执行打包命令
           eval "./mkbootimg.py $mkbootimg_args -o boot-lineage-${{ matrix.device }}.img"
-          echo "✅ 成功生成 boot-lineage-${{ matrix.device }}.img"
 
-      - name: 上传 AnyKernel3 包
+      - name: 上传文件 (AnyKernel3)
         uses: actions/upload-artifact@v5
         with:
           name: kernel-${{ matrix.device }}-ak3
           path: ak3/Anykernel3-${{ matrix.device }}.zip
 
-      - name: 上传 boot 镜像 (如果生成成功)
-        if: env.boot_available == 'true'
+      - name: 上传文件 (boot.img)
         uses: actions/upload-artifact@v5
         with:
           name: kernel-${{ matrix.device }}-boot
           path: mkbootimg/boot-lineage-${{ matrix.device }}.img
 
-  # ---------- Release 作业 ----------
   release:
     name: 发布
     permissions: { contents: write }
@@ -319,7 +222,7 @@ jobs:
           echo "time=$(TZ='Asia/Shanghai' date -u +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
           echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
 
-      - name: 下载 KernelSU Manager
+      - name: 下载ci管理器
         continue-on-error: true
         uses: dawidd6/action-download-artifact@v11
         with:
@@ -329,7 +232,7 @@ jobs:
           workflow: build-manager.yml
           path: manager
 
-      - name: 发布到 GitHub Release
+      - name: 发布
         uses: softprops/action-gh-release@v2
         with:
           tag_name: rel-${{ steps.time.outputs.timestamp }}
