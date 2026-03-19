@@ -170,20 +170,20 @@ jobs:
           cd ak3
           # 生成 anykernel.sh
           cat > anykernel.sh << EOF
-properties() {
-  kernel.string=Kernel for ${{ matrix.device }}
-  device.name1=${{ matrix.device }}
-  do.devicecheck=1
-}
-kernel=Image.gz
-ramdisk_compression=auto
-patch_vbmeta_flag=auto
-is_slot_device=auto
-block=auto
-. tools/ak3-core.sh
-split_boot
-flash_boot
-EOF
+          properties() {
+            kernel.string=Kernel for ${{ matrix.device }}
+            device.name1=${{ matrix.device }}
+            do.devicecheck=1
+          }
+          kernel=Image.gz
+          ramdisk_compression=auto
+          patch_vbmeta_flag=auto
+          is_slot_device=auto
+          block=auto
+          . tools/ak3-core.sh
+          split_boot
+          flash_boot
+          EOF
           # 打包
           ZIP_NAME="Anykernel3-${{ matrix.device }}-${{ env.AOSP_TOOLCHAIN_BRANCH }}.zip"
           zip -qr9 "$ZIP_NAME" * -x .git .github README.md *placeholder
