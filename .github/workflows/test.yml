@@ -57,7 +57,7 @@ jobs:
       - name: 配置内核基础参数 (Kprobes/OverlayFS/LTO等)
         working-directory: kernel
         run: |
-          DEFCONFIG="arch/arm64/configs/rapheal_defconfig"
+          DEFCONFIG="arch/arm64/configs/raphael_defconfig"
           
           # 开启 Kprobes
           echo "CONFIG_MODULES=y" >> $DEFCONFIG
@@ -85,7 +85,7 @@ jobs:
       - name: 配置 LXC 和 Docker 支持
         working-directory: kernel
         run: |
-          DEFCONFIG="arch/arm64/configs/rapheal_defconfig"
+          DEFCONFIG="arch/arm64/configs/raphael_defconfig"
           rm -rf utils
           git clone https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
           # 移除 LXC 补丁中强制选中的越权语句
