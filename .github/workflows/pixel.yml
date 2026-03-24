@@ -55,17 +55,149 @@ jobs:
           path: /home/runner/r547379
           key: clang-r547379
 
-      - name: Configure kernel options (LXC/Docker + user defined)
+      - name: Configure LXC/Docker support
         working-directory: kernel
         run: |
-          DEFCONFIG="arch/arm64/configs/raphael_defconfig"
+          # 准备 LXC/Docker 支持（补丁、Kconfig 等）
+          rm -rf utils
+          git clone https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
+          sed -i '/select CFS_BANDWIDTH/d' utils/Kconfig
+          sed -i '/select DOCKER_STATISTICS/d' utils/Kconfig
+          sed -i '/select BLK_DEV_THROTTLING/d' utils/Kconfig
+          sed -i '/select CFQ_GROUP_IOSCHED/d' utils/Kconfig
+          sed -i '/select BRIDGE_VLAN_FILTERING/d' utils/Kconfig
+          echo 'source "utils/Kconfig"' >> "Kconfig"
+          chmod +x utils/runcpatch.sh
+          if [ -f cgroup/cgroup.c ]; then
+              sh utils/runcpatch.sh cgroup/cgroup.c
+          fi
+          if [ -f cgroup.c ]; then
+              sh utils/runcpatch.sh cgroup.c
+          fi
+          if [ -f net/netfilter/xt_qtaguid.c ]; then
+              patch -p0 < utils/xt_qtaguid.patch
+          fi
+          # 修复 QVR 设备树语法错误
+          sed -i '/sdm845-v2-qvr-evt.dtb/d' arch/arm64/boot/dts/qcom/Makefile || true
+          sed -i '/qvr/d' arch/arm64/boot/dts/qcom/Makefile || true
+          sed -i '/interposer/d' arch/arm64/boot/dts/qcom/Makefile || true
 
-          # 先删除可能存在的旧定义，避免冲突
-          for opt in SYSVIPC SYSVIPC_SYSCTL SYSVIPC_COMPAT LOCALVERSION; do
-            sed -i "/^#\?CONFIG_$opt/d" $DEFCONFIG
-          done
+      - name: Fix cfq-iosched.c macro error
+        working-directory: kernel
+        run: |
+          # 移除宏中多余的 break; 语句
+          sed -i '/^#define cfq_log_cfqq/,/^}/ { /break;/d; }' block/cfq-iosched.c || true
 
-          cat << EOF >> $DEFCONFIG
+      - name: Generate base config
+        working-directory: kernel
+        run: |
+          export CLANG_PATH=$HOME/r547379/bin
+          export PATH=${CLANG_PATH}:${PATH}
+          make LLVM=1 LLVM_IAS=1 CC="ccache clang" raphael_defconfig
+
+      - name: Apply custom kernel configurations
+        working-directory: kernel
+        run: |
+          # 在 .config 中清理并添加所有用户定义的配置
+          cat > symbols_to_clean.txt << 'SYM_EOF'
+          CONFIG_UPROBE_EVENTS=y
+          CONFIG_KPROBE_EVENTS=y
+          CONFIG_KPROBES=y
+          CONFIG_HAVE_KPROBES=y
+          CONFIG_KPROBE_EVENT=y
+          CONFIG_KALLSYMS=y
+          CONFIG_UPROBES=y
+          CONFIG_MMU=y
+          CONFIG_PERF_EVENTS=y
+          CONFIG_UPROBE_EVENT=y
+          CONFIG_BPF=y
+          CONFIG_BPF_EVENTS=y
+          CONFIG_BPF_JIT=y
+          CONFIG_DEBUG_INFO_BTF=y
+          CONFIG_HAVE_BPF_JIT=y
+          CONFIG_NF_NAT_IPV6=y
+          CONFIG_IP6_NF_TARGET_MASQUERADE=y
+          CONFIG_NETFILTER_XT_TARGET_CHECKSUM=y
+          CONFIG_FHANDLE=y
+          CONFIG_UNIX_DIAG=y
+          CONFIG_PACKET_DIAG=y
+          CONFIG_NETLINK_DIAG=y
+          CONFIG_VLAN_8021Q=y
+          CONFIG_NET_L3_MASTER_DEV=y
+          CONFIG_NET_NS=y
+          CONFIG_KEYS=y
+          CONFIG_NETFILTER_XT_MARK=y
+          CONFIG_NF_NAT=y
+          CONFIG_NF_NAT_IPV4=y
+          CONFIG_NF_NAT_NEEDED=y
+          CONFIG_SECCOMP_FILTER=y
+          CONFIG_MEMCG_SWAP_ENABLED=y
+          CONFIG_IOSCHED_CFQ=y
+          CONFIG_CGROUP_PERF=y
+          CONFIG_FAIR_GROUP_SCHED=y
+          CONFIG_VXLAN=y
+          CONFIG_CRYPTO=y
+          CONFIG_CRYPTO_AEAD=y
+          CONFIG_CRYPTO_SEQIV=y
+          CONFIG_CRYPTO_GHASH=y
+          CONFIG_XFRM=y
+          CONFIG_XFRM_ALGO=y
+          CONFIG_INET_XFRM_MODE_TRANSPORT=y
+          CONFIG_NF_NAT_FTP=y
+          CONFIG_NF_NAT_TFTP=y
+          CONFIG_AUFS_FS=y
+          CONFIG_DM_THIN_PROVISIONING=y
+          CONFIG_BPF_CGROUP_DEVICE=y
+          CONFIG_MACVLAN=y
+          CONFIG_SYSVIPC=y
+          CONFIG_SYSVIPC_SYSCTL=y
+          CONFIG_SYSVIPC_COMPAT=y
+          CONFIG_EPOLL=y
+          CONFIG_EVENTFD=y
+          CONFIG_SIGNALFD=y
+          CONFIG_INOTIFY_USER=y
+          CONFIG_SHMEM=y
+          CONFIG_TMPFS=y
+          CONFIG_TMPFS_POSIX_ACL=y
+          CONFIG_TMPFS_XATTR=y
+          CONFIG_DOCKER=y
+          CONFIG_PID_NS=y
+          CONFIG_IPC_NS=y
+          CONFIG_UTS_NS=y
+          CONFIG_VETH=y
+          CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y
+          CONFIG_NETFILTER_XT_MATCH_IPVS=y
+          CONFIG_POSIX_MQUEUE=y
+          CONFIG_CGROUP_PIDS=y
+          CONFIG_BLK_DEV_THROTTLING=y
+          CONFIG_CGROUP_PERF=y
+          CONFIG_VXLAN=y
+          CONFIG_CGROUP_HUGETLB=y
+          CONFIG_NET_CLS_CGROUP=y
+          CONFIG_CGROUP_NET_PRIO=y
+          CONFIG_IP_VS=y
+          CONFIG_IP_VS_NFCT=y
+          CONFIG_IP_VS_PROTO_TCP=y
+          CONFIG_IP_VS_PROTO_UDP=y
+          CONFIG_IP_VS_RR=y
+          CONFIG_SECURITY_APPARMOR=y
+          EOF
+
+          while read symbol; do
+            sed -i "/^${symbol}=/d" .config
+            sed -i "/^# ${symbol} is not set/d" .config
+          done < symbols_to_clean.txt
+
+          # 添加 LXC/Docker 必需的配置
+          echo "CONFIG_DOCKER=y" >> .config
+          echo "# CONFIG_CFS_BANDWIDTH is not set" >> .config
+          echo "# CONFIG_DOCKER_STATISTICS is not set" >> .config
+          echo "# CONFIG_CFQ_GROUP_IOSCHED is not set" >> .config
+          sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' .config
+          echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> .config
+
+          # 添加用户自定义配置
+          cat >> .config << 'USER_EOF'
           CONFIG_UPROBE_EVENTS=y
           CONFIG_KPROBE_EVENTS=y
           CONFIG_KPROBES=y
@@ -150,43 +282,34 @@ jobs:
           EOF
 
           # 设置 LOCALVERSION
-          echo 'CONFIG_LOCALVERSION="-Geeeeeker-perf"' >> $DEFCONFIG
+          sed -i '/CONFIG_LOCALVERSION/d' .config
+          echo 'CONFIG_LOCALVERSION="-Geeeeeker-perf"' >> .config
+
+          rm -f symbols_to_clean.txt
+
+      - name: Resolve config dependencies
+        working-directory: kernel
+        run: |
+          export CLANG_PATH=$HOME/r547379/bin
+          export PATH=${CLANG_PATH}:${PATH}
+          make LLVM=1 LLVM_IAS=1 CC="ccache clang" olddefconfig
 
       - name: Build the kernel with ccache
         working-directory: kernel
         run: |
           export CLANG_PATH=$HOME/r547379/bin
           export PATH=${CLANG_PATH}:${PATH}
-
-          make LLVM=1 LLVM_IAS=1 CC="ccache clang" raphael_defconfig
           make LLVM=1 LLVM_IAS=1 CC="ccache clang" -j$(grep -c ^processor /proc/cpuinfo)
-
-          # 显式生成所需的镜像文件
-          make LLVM=1 LLVM_IAS=1 CC="ccache clang" Image.gz-dtb dtbo.img -j$(nproc)
-
           ccache --show-stats
           ccache --show-config
         shell: bash
 
-      # ========== 打包内核刷写包（AnyKernel3） ==========
       - name: Repack Kernel Artifacts
         id: pack
         run: |
-          # 查找生成的镜像文件（在 out 目录中）
-          IMAGE=$(find kernel/out/arch/arm64/boot -name "Image.gz-dtb" -o -name "Image" | head -1)
-          if [ -z "$IMAGE" ]; then
-            echo "ERROR: No kernel image found in kernel/out/arch/arm64/boot/"
-            exit 1
-          fi
-          DTBO=$(find kernel/out/arch/arm64/boot -name "dtbo.img" | head -1)
-          if [ -z "$DTBO" ]; then
-            echo "ERROR: dtbo.img not found in kernel/out/arch/arm64/boot/"
-            exit 1
-          fi
-
           git clone --depth=1 https://github.com/SOVIET-ANDROID/AnyKernel3.git $HOME/AnyKernel3
-          cp "$IMAGE" $HOME/AnyKernel3/Image.gz-dtb
-          cp "$DTBO" $HOME/AnyKernel3/dtbo.img
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb $HOME/AnyKernel3/
+          cp kernel/out/arch/arm64/boot/dtbo.img $HOME/AnyKernel3/
 
           DEVICE="raphael"
           ANDROID_VER="16.0"
@@ -215,9 +338,7 @@ jobs:
           body: |
             Kernel for ${{ env.DEVICE }} (Android ${{ env.ANDROID_VER }})
             Built from commit ${{ github.sha }}
-          files: |
-            ${{ github.workspace }}/${{ env.ZIP_NAME }}
-            ${{ github.workspace }}/usbip-arm64-bundle-with-modules.tar.gz
+          files: ${{ github.workspace }}/${{ env.ZIP_NAME }}
           draft: false
           prerelease: false
         env:
