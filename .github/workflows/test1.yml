@@ -267,41 +267,23 @@ jobs:
           tar czf ../usbip-arm64-bundle.tar.gz .
           cd ..
 
-      - name: 准备 mkbootimg 工具
-        run: |
-          git clone https://android.googlesource.com/platform/system/tools/mkbootimg --depth=1 mkbootimg
+      - name: 安装 abootimg
+        run: sudo apt install -y abootimg
 
-      - name: 下载官方 boot.img 并重新打包 (替换内核+dtb+dtbo)
+      - name: 使用 abootimg 重新打包 boot.img
         id: repack_boot
         run: |
-          cd mkbootimg
+          # 下载参考 boot.img
           curl -fLSs "${{ env.BOOT_IMG_URL }}" -o boot.img
-          ./unpack_bootimg.py --out out --boot_img boot.img --format mkbootimg > mkbootimg_args.txt
-
+          mkdir boot_repack
+          cd boot_repack
+          # 解包
+          abootimg -x ../boot.img
           # 替换内核
-          cp ../kernel/out/arch/arm64/boot/Image.gz out/kernel
-
-          # 替换 dtb
-          DTB_FILE=$(find ../kernel/out/arch/arm64/boot/dts -name "sm8150-xiaomi.dtb" | head -n1)
-          if [ -n "$DTB_FILE" ]; then
-            cp "$DTB_FILE" out/dtb
-          fi
-
-          # 替换 dtbo
-          DTBO_FILE=$(find ../kernel/out/arch/arm64/boot/dts -name "raphael*.dtbo" | head -n1)
-          if [ -n "$DTBO_FILE" ]; then
-            cp "$DTBO_FILE" out/dtbo
-          fi
-
-          # 构造 mkbootimg 命令
-          mkbootimg_args=$(cat mkbootimg_args.txt)
-          if [[ "$mkbootimg_args" != *"--dtbo"* ]] && [ -f out/dtbo ]; then
-            mkbootimg_args="$mkbootimg_args --dtbo dtbo"
-          fi
-
-          # 生成新的 boot.img
-          ./mkbootimg.py $mkbootimg_args -o boot-lineage-raphael.img
-          cp boot-lineage-raphael.img $GITHUB_WORKSPACE/boot-raphael.img
+          cp $GITHUB_WORKSPACE/kernel/out/arch/arm64/boot/Image.gz kernel
+          # 重新打包
+          abootimg --create $GITHUB_WORKSPACE/boot-raphael.img -f bootimg.cfg -k kernel -r initrd.img
+          cd ..
 
       - name: 生成 AnyKernel3 压缩包
         run: |
