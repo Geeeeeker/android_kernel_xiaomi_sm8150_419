@@ -1,0 +1,385 @@
+name: 编译内核与设备树 (含 USB/IP)
+
+on:
+  push:
+    branches:
+      - dev/*
+      - stable/*
+  workflow_dispatch:
+
+env:
+  AOSP_TOOLCHAIN_BRANCH: android16        # 分支名不包含 "-release"
+  AOSP_CLANG_VERSION: r547379
+  # 用于 USB/IP 交叉编译的目标架构
+  TARGET_ARCH: aarch64-linux-gnu
+  BOOT_IMG_URL: https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel/releases/download/2.0/raphael_boot.img
+
+jobs:
+  build:
+    name: 编译内核与设备树
+    permissions: { contents: write }
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        device: [raphael]
+    steps:
+      - name: 安装软件包
+        env:
+          PACKAGES: >-
+            ccache binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
+            device-tree-compiler dos2unix gcc-aarch64-linux-gnu
+            autoconf libtool pkg-config flex bison patchelf
+            libudev-dev:arm64 libssl-dev:arm64
+            kmod bc libelf-dev
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo apt update > /dev/null
+          sudo apt install -y ${{ env.PACKAGES }} > /dev/null
+
+      - name: 同步仓库
+        uses: actions/checkout@v4
+        with:
+          path: kernel
+
+      - name: 深度清理设备树源文件
+        working-directory: kernel
+        run: |
+          find arch/arm64/boot/dts -type f \( -name "*.dts" -o -name "*.dtsi" \) -print0 | while IFS= read -r -d '' FILE; do
+            echo "正在清理: $FILE"
+            sed -i '1s/^\xEF\xBB\xBF//' "$FILE"
+            dos2unix "$FILE"
+            tr -cd '\11\12\15\40-\176' < "$FILE" > "${FILE}.clean"
+            mv "${FILE}.clean" "$FILE"
+            echo >> "$FILE"
+          done
+
+      - name: 缓存Clang
+        id: cache-clang
+        uses: actions/cache@v4
+        with:
+          path: clang
+          key: clang-${{ env.AOSP_TOOLCHAIN_BRANCH }}-${{ env.AOSP_CLANG_VERSION }}
+
+      - name: 下载Clang
+        if: steps.cache-clang.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p clang &&
+          curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/${{ env.AOSP_TOOLCHAIN_BRANCH }}-release/clang-${{ env.AOSP_CLANG_VERSION }}.tar.gz" |
+          tar xz -C clang
+
+      - name: 缓存ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: kernel-${{ matrix.device }}
+          restore-keys: kernel-${{ matrix.device }}
+          max-size: 5G
+
+      - name: 配置内核基础参数 (Kprobes/OverlayFS/LTO等) + USB/IP 及其他必需选项
+        working-directory: kernel
+        run: |
+          DEFCONFIG="arch/arm64/configs/raphael_defconfig"
+          # --- 原有配置 ---
+          echo "CONFIG_MODULES=y" >> $DEFCONFIG
+          echo "CONFIG_KPROBES=y" >> $DEFCONFIG
+          echo "CONFIG_HAVE_KPROBES=y" >> $DEFCONFIG
+          echo "CONFIG_KPROBE_EVENTS=y" >> $DEFCONFIG
+          echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
+          sed -i 's/CONFIG_LTO=y/CONFIG_LTO=n/' $DEFCONFIG
+          sed -i 's/CONFIG_LTO_CLANG=y/CONFIG_LTO_CLANG=n/' $DEFCONFIG
+          sed -i 's/CONFIG_THINLTO=y/CONFIG_THINLTO=n/' $DEFCONFIG
+          echo "CONFIG_LTO_NONE=y" >> $DEFCONFIG
+          echo "CONFIG_CC_WERROR=n" >> $DEFCONFIG
+          echo "CONFIG_BPF_JIT=y" >> $DEFCONFIG
+          echo "# CONFIG_BPF_JIT_ALWAYS_ON is not set" >> $DEFCONFIG
+          echo "CONFIG_BPF_SYSCALL=y" >> $DEFCONFIG
+
+          # --- 新增用户要求的配置 ---
+          # 基础系统功能
+          echo "CONFIG_SYSVIPC=y" >> $DEFCONFIG
+          echo "CONFIG_SYSVIPC_SYSCTL=y" >> $DEFCONFIG
+          echo "CONFIG_SYSVIPC_COMPAT=y" >> $DEFCONFIG
+          echo "CONFIG_EPOLL=y" >> $DEFCONFIG
+          echo "CONFIG_EVENTFD=y" >> $DEFCONFIG
+          echo "CONFIG_SIGNALFD=y" >> $DEFCONFIG
+          echo "CONFIG_INOTIFY_USER=y" >> $DEFCONFIG
+          echo "CONFIG_SHMEM=y" >> $DEFCONFIG
+          echo "CONFIG_TMPFS=y" >> $DEFCONFIG
+          echo "CONFIG_TMPFS_POSIX_ACL=y" >> $DEFCONFIG
+          echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG
+          # USB/IP 支持
+          echo "CONFIG_USBIP_CORE=m" >> $DEFCONFIG
+          echo "CONFIG_USBIP_VHCI_HCD=m" >> $DEFCONFIG
+          echo "CONFIG_USBIP_HOST=m" >> $DEFCONFIG
+          # 模块版本控制
+          sed -i '/CONFIG_MODVERSIONS/d' $DEFCONFIG
+          echo "CONFIG_MODVERSIONS=y" >> $DEFCONFIG
+          # 将链接器不匹配降级为警告
+          echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DEFCONFIG
+
+      - name: 配置 LXC 和 Docker 支持
+        working-directory: kernel
+        run: |
+          DEFCONFIG="arch/arm64/configs/raphael_defconfig"
+          rm -rf utils
+          git clone https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
+          sed -i '/select CFS_BANDWIDTH/d' utils/Kconfig
+          sed -i '/select DOCKER_STATISTICS/d' utils/Kconfig
+          sed -i '/select BLK_DEV_THROTTLING/d' utils/Kconfig
+          sed -i '/select CFQ_GROUP_IOSCHED/d' utils/Kconfig
+          sed -i '/select BRIDGE_VLAN_FILTERING/d' utils/Kconfig
+          echo 'source "utils/Kconfig"' >> "Kconfig"
+          echo "CONFIG_DOCKER=y" >> $DEFCONFIG
+          echo "# CONFIG_CFS_BANDWIDTH is not set" >> $DEFCONFIG
+          echo "# CONFIG_DOCKER_STATISTICS is not set" >> $DEFCONFIG
+          sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' $DEFCONFIG
+          echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> $DEFCONFIG
+          echo "# CONFIG_BLK_DEV_THROTTLING is not set" >> $DEFCONFIG
+          echo "# CONFIG_CFQ_GROUP_IOSCHED is not set" >> $DEFCONFIG
+          sed -i '/sdm845-v2-qvr-evt.dtb/d' arch/arm64/boot/dts/qcom/Makefile
+          sed -i '/qvr/d' arch/arm64/boot/dts/qcom/Makefile
+          sed -i '/interposer/d' arch/arm64/boot/dts/qcom/Makefile
+          chmod +x utils/runcpatch.sh
+          if [ -f kernel/cgroup/cgroup.c ]; then
+              sh utils/runcpatch.sh kernel/cgroup/cgroup.c
+          fi
+          if [ -f kernel/cgroup.c ]; then
+              sh utils/runcpatch.sh kernel/cgroup.c
+          fi
+          if [ -f net/netfilter/xt_qtaguid.c ]; then
+              patch -p0 < utils/xt_qtaguid.patch
+          fi
+
+      - name: 编译内核与设备树
+        working-directory: kernel
+        run: |
+          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+          export KBUILD_BUILD_USER=${{ github.repository_owner }}
+          export KBUILD_BUILD_HOST=github-runner
+          export KBUILD_BUILD_TIMESTAMP=$(date -u -d "@$(git log -1 --format=%at)" +"%a %b %d %H:%M:%S %Z %Y")
+          make -j$(nproc --all) \
+            CC="ccache clang" \
+            ARCH=arm64 \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            O=out \
+            KCFLAGS="-Wno-error=strict-prototypes" \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            raphael_defconfig Image.gz dtbs
+
+      - name: 编译 USB/IP 内核模块
+        working-directory: kernel
+        run: |
+          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+          make -j$(nproc --all) \
+            ARCH=arm64 \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            O=out \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            M=drivers/usb/usbip \
+            modules
+
+      - name: 编译 USB/IP 用户态工具 (交叉编译)
+        working-directory: kernel
+        run: |
+          cd tools/usb/usbip
+          ./autogen.sh
+          ./configure \
+            CC=aarch64-linux-gnu-gcc \
+            CFLAGS="-Wno-error -Wno-error=stringop-truncation" \
+            --host=aarch64-linux-gnu \
+            --with-tcp-wrappers=no \
+            --prefix=/usr
+          make -j$(nproc)
+
+          # 创建输出目录
+          mkdir -p $GITHUB_WORKSPACE/usbip-out/{bin,libs,modules}
+
+          # 复制用户态二进制和库
+          cp src/.libs/usbip $GITHUB_WORKSPACE/usbip-out/bin/
+          cp src/.libs/usbipd $GITHUB_WORKSPACE/usbip-out/bin/
+          cp libsrc/.libs/libusbip.so.0* $GITHUB_WORKSPACE/usbip-out/libs/
+
+          # 复制内核模块
+          find $GITHUB_WORKSPACE/kernel/out/drivers/usb/usbip -name '*.ko' -exec cp {} $GITHUB_WORKSPACE/usbip-out/modules/ \;
+
+          # 收集动态库依赖
+          cd $GITHUB_WORKSPACE/usbip-out
+          BINARIES="bin/usbip bin/usbipd libs/libusbip.so.0*"
+          DEPS=""
+          for file in $BINARIES; do
+            if [ -f "$file" ]; then
+              echo "Collecting dependencies for $file..."
+              needed=$(aarch64-linux-gnu-readelf -d "$file" | grep NEEDED | awk '{print $5}' | tr -d '[]' || true)
+              for lib in $needed; do
+                if [[ "$DEPS" != *"$lib"* ]]; then
+                  DEPS="$DEPS $lib"
+                fi
+              done
+            fi
+          done
+
+          # 去重并复制库文件 (从交叉编译 sysroot 中找)
+          for lib in $(echo $DEPS | tr ' ' '\n' | sort -u); do
+            echo "Searching for library: $lib"
+            libpath=$(find /usr/aarch64-linux-gnu/lib -name "$lib" -type f 2>/dev/null | head -1)
+            if [ -z "$libpath" ]; then
+              libpath=$(find /lib/aarch64-linux-gnu /usr/lib/aarch64-linux-gnu -name "$lib" -type f 2>/dev/null | head -1)
+            fi
+            if [ -n "$libpath" ]; then
+              echo "Found: $libpath"
+              cp -P "$libpath" libs/ 2>/dev/null || cp "$libpath" libs/
+              for reallib in $(find "$(dirname "$libpath")" -name "${lib%.so*}*" -type f 2>/dev/null); do
+                cp -n "$reallib" libs/ 2>/dev/null || true
+              done
+            else
+              echo "Warning: library $lib not found"
+            fi
+          done
+
+          # 确保 ld-linux 被复制
+          ld_linux="/usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1"
+          if [ -f "$ld_linux" ]; then
+            cp -P "$ld_linux" libs/
+          fi
+
+          # 可选：修改 rpath 以便在 Android 上使用相对路径
+          for bin in bin/*; do
+            patchelf --set-rpath '$ORIGIN/../libs' "$bin" 2>/dev/null || true
+          done
+
+      - name: 打包 USB/IP 产物
+        run: |
+          cd usbip-out
+          tar czf ../usbip-arm64-bundle.tar.gz .
+          cd ..
+
+      - name: 准备 mkbootimg 工具
+        run: |
+          git clone https://android.googlesource.com/platform/system/tools/mkbootimg --depth=1 mkbootimg
+
+      - name: 下载官方 boot.img 并重新打包 (替换内核+dtb+dtbo)
+        id: repack_boot
+        run: |
+          cd mkbootimg
+          echo "Downloading boot.img from ${{ env.BOOT_IMG_URL }}"
+          curl -fLSs "${{ env.BOOT_IMG_URL }}" -o boot.img
+          ./unpack_bootimg.py --out out --boot_img boot.img --format mkbootimg > mkbootimg_args.txt
+
+          # 替换内核
+          cp ../kernel/out/arch/arm64/boot/Image.gz out/kernel
+
+          # 替换 dtb (若存在)
+          DTB_FILE=$(find ../kernel/out/arch/arm64/boot/dts -name "sm8150-xiaomi.dtb" | head -n1)
+          if [ -n "$DTB_FILE" ]; then
+            cp "$DTB_FILE" out/dtb
+          fi
+
+          # 替换 dtbo (若存在)
+          DTBO_FILE=$(find ../kernel/out/arch/arm64/boot/dts -name "raphael*.dtbo" | head -n1)
+          if [ -n "$DTBO_FILE" ]; then
+            cp "$DTBO_FILE" out/dtbo
+          fi
+
+          # 构造 mkbootimg 命令
+          mkbootimg_args=$(cat mkbootimg_args.txt)
+          if [[ "$mkbootimg_args" != *"--dtbo"* ]] && [ -f out/dtbo ]; then
+            mkbootimg_args="$mkbootimg_args --dtbo dtbo"
+          fi
+
+          # 生成新的 boot.img
+          ./mkbootimg.py $mkbootimg_args -o boot-lineage-raphael.img
+          cp boot-lineage-raphael.img $GITHUB_WORKSPACE/boot-raphael.img
+
+      - name: 生成 AnyKernel3 压缩包
+        run: |
+          git clone https://github.com/osm0sis/AnyKernel3 --depth=1 ak3
+          cp kernel/out/arch/arm64/boot/Image.gz ak3/
+          mkdir -p ak3/dtb ak3/dtbo
+          DTB_FILE=$(find kernel/out/arch/arm64/boot/dts -name "sm8150-xiaomi.dtb" | head -n1)
+          cp "$DTB_FILE" ak3/dtb/dtb
+          DTBO_FILE=$(find kernel/out/arch/arm64/boot/dts -name "raphael*.dtbo" | head -n1)
+          cp "$DTBO_FILE" ak3/dtbo/dtbo
+
+          cd ak3
+          # 获取内核版本号
+          KERNEL_VERSION=$(make -C ../kernel kernelversion)
+          ZIP_NAME="Anykernel3-${{ matrix.device }}-${KERNEL_VERSION}.zip"
+
+          cat > anykernel.sh << EOF
+          properties() {
+            kernel.string=Kernel for ${{ matrix.device }}
+            device.name1=${{ matrix.device }}
+            do.devicecheck=1
+          }
+          kernel=Image.gz
+          ramdisk_compression=auto
+          patch_vbmeta_flag=auto
+          is_slot_device=auto
+          block=auto
+          . tools/ak3-core.sh
+          split_boot
+          flash_boot
+          EOF
+
+          zip -qr9 "$ZIP_NAME" * -x .git .github README.md *placeholder
+          mv "$ZIP_NAME" $GITHUB_WORKSPACE/
+          cd ..
+
+      - name: 上传 AnyKernel3 ZIP
+        uses: actions/upload-artifact@v5
+        with:
+          name: kernel-${{ matrix.device }}-ak3
+          path: Anykernel3-${{ matrix.device }}-*.zip
+
+      - name: 上传 boot.img
+        uses: actions/upload-artifact@v5
+        with:
+          name: kernel-${{ matrix.device }}-bootimg
+          path: boot-raphael.img
+
+      - name: 上传 USB/IP 捆绑包
+        uses: actions/upload-artifact@v5
+        with:
+          name: kernel-${{ matrix.device }}-usbip
+          path: usbip-arm64-bundle.tar.gz
+
+  release:
+    name: 发布
+    permissions: { contents: write }
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: 获取构建产物
+        uses: actions/download-artifact@v6
+        with:
+          path: artifacts
+          pattern: kernel-*
+          merge-multiple: true
+
+      - name: 获取当前时间
+        id: time
+        run: |
+          echo "time=$(TZ='Asia/Shanghai' date -u +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: 下载 KernelSU Manager (可选)
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          repo: rsuntk/KernelSU
+          workflow_conclusion: success
+          name: manager
+          workflow: build-manager.yml
+          path: manager
+
+      - name: 发布
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rel-${{ steps.time.outputs.timestamp }}
+          name: Kernel build ${{ steps.time.outputs.time }}
+          prerelease: ${{ startsWith(github.ref_name, 'dev/') }}
+          files: |
+            artifacts/*
+            manager/*
