@@ -195,7 +195,6 @@ jobs:
               set -e
               export DEBIAN_FRONTEND=noninteractive
 
-              # 安装用户态工具编译依赖
               apt update
               apt install -y \
                 build-essential \
@@ -209,11 +208,12 @@ jobs:
                 file \
                 patchelf
 
-              # 编译 USB/IP 用户态工具
               cd tools/usb/usbip
               ./autogen.sh
-              ./configure CFLAGS=\"-Wno-error -Wno-error=stringop-truncation\" --prefix=/usr
-              make -j\$(nproc)
+              # 传递 CFLAGS，禁用所有警告为错误
+              ./configure CFLAGS=\"-Wno-error\" --prefix=/usr
+              # 再次确保 make 时也使用 CFLAGS
+              make CFLAGS=\"-Wno-error\" -j\$(nproc)
 
               # 复制二进制和库
               cp src/.libs/usbip /output/bin/
@@ -296,8 +296,8 @@ jobs:
           cp "$DTBO_FILE" ak3/dtbo/dtbo
 
           cd ak3
-          # 使用 -s 静默模式，避免输出目录信息，并只取最后一行
-          KERNEL_VERSION=$(make -s -C ../kernel kernelversion 2>/dev/null | tail -1)
+          # 从编译输出目录读取内核版本（最可靠）
+          KERNEL_VERSION=$(cat ../kernel/out/include/config/kernel.release | tr -d '\n')
           ZIP_NAME="Anykernel3-${{ matrix.device }}-${KERNEL_VERSION}.zip"
 
           cat > anykernel.sh << EOF
