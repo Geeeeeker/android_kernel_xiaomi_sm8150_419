@@ -1,11 +1,7 @@
-name: Continues testing
+name: Continuous Testing
 
 on:
   push:
-    branches:
-      - '**'
-    tags:
-      - '*'
   pull_request:
 
 jobs:
@@ -14,11 +10,9 @@ jobs:
     env:
       KBUILD_BUILD_USER: NATO66613
       KBUILD_BUILD_HOST: KREMLIN
-
     steps:
-      - name: Clone kernel source manually
-        run: |
-          git clone --depth=1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel.git kernel
+      - name: Clone kernel source
+        run: git clone --depth 1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel kernel
 
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -55,160 +49,61 @@ jobs:
           path: /home/runner/r547379
           key: clang-r547379
 
-      - name: Configure kernel options (LXC/Docker + user defined)
-        working-directory: kernel
-        run: |
-          DEFCONFIG="arch/arm64/configs/raphael_defconfig"
-          
-          # 添加用户提供的所有 CONFIG_* 项
-          cat << EOF >> $DEFCONFIG
-          CONFIG_UPROBE_EVENTS=y
-          CONFIG_KPROBE_EVENTS=y
-          CONFIG_KPROBES=y
-          CONFIG_HAVE_KPROBES=y
-          CONFIG_KPROBE_EVENT=y
-          CONFIG_KALLSYMS=y
-          CONFIG_UPROBES=y
-          CONFIG_MMU=y
-          CONFIG_PERF_EVENTS=y
-          CONFIG_UPROBE_EVENT=y
-          CONFIG_BPF=y
-          CONFIG_BPF_EVENTS=y
-          CONFIG_BPF_JIT=y
-          CONFIG_DEBUG_INFO_BTF=y
-          CONFIG_HAVE_BPF_JIT=y
-          CONFIG_NF_NAT_IPV6=y
-          CONFIG_IP6_NF_TARGET_MASQUERADE=y
-          CONFIG_NETFILTER_XT_TARGET_CHECKSUM=y
-          CONFIG_FHANDLE=y
-          CONFIG_UNIX_DIAG=y
-          CONFIG_PACKET_DIAG=y
-          CONFIG_NETLINK_DIAG=y
-          CONFIG_VLAN_8021Q=y
-          CONFIG_NET_L3_MASTER_DEV=y
-          CONFIG_NET_NS=y
-          CONFIG_KEYS=y
-          CONFIG_NETFILTER_XT_MARK=y
-          CONFIG_NF_NAT=y
-          CONFIG_NF_NAT_IPV4=y
-          CONFIG_NF_NAT_NEEDED=y
-          CONFIG_SECCOMP_FILTER=y
-          CONFIG_MEMCG_SWAP_ENABLED=y
-          CONFIG_IOSCHED_CFQ=y
-          CONFIG_CGROUP_PERF=y
-          CONFIG_FAIR_GROUP_SCHED=y
-          CONFIG_VXLAN=y
-          CONFIG_CRYPTO=y
-          CONFIG_CRYPTO_AEAD=y
-          CONFIG_CRYPTO_SEQIV=y
-          CONFIG_CRYPTO_GHASH=y
-          CONFIG_XFRM=y
-          CONFIG_XFRM_ALGO=y
-          CONFIG_INET_XFRM_MODE_TRANSPORT=y
-          CONFIG_NF_NAT_FTP=y
-          CONFIG_NF_NAT_TFTP=y
-          CONFIG_AUFS_FS=y
-          CONFIG_DM_THIN_PROVISIONING=y
-          CONFIG_BPF_CGROUP_DEVICE=y
-          CONFIG_MACVLAN=y
-          CONFIG_SYSVIPC=y
-          CONFIG_SYSVIPC_SYSCTL=y
-          CONFIG_SYSVIPC_COMPAT=y
-          CONFIG_EPOLL=y
-          CONFIG_EVENTFD=y
-          CONFIG_SIGNALFD=y
-          CONFIG_INOTIFY_USER=y
-          CONFIG_SHMEM=y
-          CONFIG_TMPFS=y
-          CONFIG_TMPFS_POSIX_ACL=y
-          CONFIG_TMPFS_XATTR=y
-          CONFIG_USBIP_CORE=y
-          CONFIG_USBIP_VHCI_HCD=y
-          CONFIG_USBIP_HOST=y
-          CONFIG_DOCKER=y
-          CONFIG_PID_NS=y
-          CONFIG_IPC_NS=y
-          CONFIG_UTS_NS=y
-          CONFIG_VETH=y
-          CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y
-          CONFIG_NETFILTER_XT_MATCH_IPVS=y
-          CONFIG_POSIX_MQUEUE=y
-          CONFIG_CGROUP_PIDS=y
-          CONFIG_BLK_DEV_THROTTLING=y
-          CONFIG_CGROUP_HUGETLB=y
-          CONFIG_NET_CLS_CGROUP=y
-          CONFIG_CGROUP_NET_PRIO=y
-          CONFIG_IP_VS=y
-          CONFIG_IP_VS_NFCT=y
-          CONFIG_IP_VS_PROTO_TCP=y
-          CONFIG_IP_VS_PROTO_UDP=y
-          CONFIG_IP_VS_RR=y
-          CONFIG_SECURITY_APPARMOR=y
-          EOF
-          # 修正 SYSVIPC 相关选项（去除重复，确保正确）
-          sed -i '/CONFIG_SYSVIPC/d' $DEFCONFIG
-          sed -i '/CONFIG_SYSVIPC_SYSCTL/d' $DEFCONFIG
-          sed -i '/CONFIG_SYSVIPC_COMPAT/d' $DEFCONFIG
-          echo "CONFIG_SYSVIPC=y" >> $DEFCONFIG
-          echo "CONFIG_SYSVIPC_SYSCTL=y" >> $DEFCONFIG
-          echo "CONFIG_SYSVIPC_COMPAT=y" >> $DEFCONFIG
-          # 设置 LOCALVERSION
-          sed -i '/CONFIG_LOCALVERSION/d' $DEFCONFIG
-          echo 'CONFIG_LOCALVERSION="-Geeeeeker-perf"' >> $DEFCONFIG
-
-      - name: Build the kernel with ccache
+      - name: Configure and build kernel
         working-directory: kernel
         run: |
           export CLANG_PATH=$HOME/r547379/bin
           export PATH=${CLANG_PATH}:${PATH}
           
-          make LLVM=1 LLVM_IAS=1 CC="ccache clang" raphael_defconfig
-          make LLVM=1 LLVM_IAS=1 CC="ccache clang" -j$(grep -c ^processor /proc/cpuinfo)
+          # 生成默认配置
+          make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" O=out raphael_defconfig
+          
+          # ---- 写入额外配置项 ----
+          # 使用 scripts/config 工具修改 .config
+          cd out
+          # 启用 y 选项
+          for cfg in CONFIG_SYSVIPC CONFIG_SYSVIPC_SYSCTL CONFIG_SYSVIPC_COMPAT CONFIG_EPOLL CONFIG_EVENTFD CONFIG_SIGNALFD CONFIG_INOTIFY_USER CONFIG_SHMEM CONFIG_TMPFS CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR; do
+            ../scripts/config --enable ${cfg#CONFIG_}
+          done
+          # 启用模块选项（=m）
+          for cfg in CONFIG_USBIP_CORE CONFIG_USBIP_VHCI_HCD CONFIG_USBIP_HOST; do
+            ../scripts/config --module ${cfg#CONFIG_}
+          done
+          # 可选：确保模块支持已开启（通常 defconfig 已有，但保险）
+          ../scripts/config --enable MODULES
+          # 处理依赖关系
+          make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" olddefconfig
+          cd ..
+          # ---------------------
+          
+          # 正式构建
+          make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" O=out -j$(nproc)
           
           ccache --show-stats
           ccache --show-config
-        shell: bash
 
-      - name: Repack Kernel Artifacts
-        id: pack
+      - name: Prepare AnyKernel3
         run: |
           git clone --depth=1 https://github.com/SOVIET-ANDROID/AnyKernel3.git $HOME/AnyKernel3
-          # 复制内核镜像（修正路径：内核默认输出到 arch/arm64/boot/）
-          cp kernel/arch/arm64/boot/Image.gz-dtb $HOME/AnyKernel3/
-          cp kernel/arch/arm64/boot/dtbo.img $HOME/AnyKernel3/
-          # 检查文件是否复制成功
-          if [ ! -f $HOME/AnyKernel3/Image.gz-dtb ] || [ ! -f $HOME/AnyKernel3/dtbo.img ]; then
-            echo "Error: Required kernel images not found!"
-            exit 1
-          fi
-          DEVICE="raphael"
-          ANDROID_VER="16.0"
-          ZIP_NAME="anykernel3-${DEVICE}-${ANDROID_VER}.zip"
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb $HOME/AnyKernel3/
+          cp kernel/out/arch/arm64/boot/dtbo.img $HOME/AnyKernel3/
+          
+          BRANCH=$(echo "${GITHUB_REF#refs/heads/}" | sed 's|/|-|g')
+          COMMIT_HASH=$(echo "$GITHUB_SHA" | cut -c1-6)
+          ZIP_NAME="${BRANCH}-${COMMIT_HASH}.zip"
           echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
-          echo "DEVICE=${DEVICE}" >> $GITHUB_ENV
-          echo "ANDROID_VER=${ANDROID_VER}" >> $GITHUB_ENV
-          cd $HOME/AnyKernel3
-          zip -r9 ${ZIP_NAME} * -x .git README.md *placeholder
-          mv ${ZIP_NAME} $GITHUB_WORKSPACE/
-          cd $GITHUB_WORKSPACE
+          
+          mv "$HOME/AnyKernel3" "$GITHUB_WORKSPACE/AnyKernel3"
+
+      - name: Package kernel zip
+        run: |
+          cd AnyKernel3
+          zip -r9 "../${ZIP_NAME}" *
+          cd ..
+          echo "Packaged ${ZIP_NAME}"
 
       - name: Upload Kernel Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ZIP_NAME }}
           path: ${{ github.workspace }}/${{ env.ZIP_NAME }}
-
-      - name: Create Release and Upload Asset
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          body: |
-            Kernel for ${{ env.DEVICE }} (Android ${{ env.ANDROID_VER }})
-            Built from commit ${{ github.sha }}
-          files: ${{ github.workspace }}/${{ env.ZIP_NAME }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
