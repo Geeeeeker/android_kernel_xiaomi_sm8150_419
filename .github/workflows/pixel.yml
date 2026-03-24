@@ -129,6 +129,12 @@ jobs:
               patch -p0 < utils/xt_qtaguid.patch
           fi
 
+      - name: 修复 btrfs 时间戳类型错误
+        working-directory: kernel
+        run: |
+          # 将 btrfs inode.c 中错误的 struct timespec 改为 struct timespec64
+          sed -i 's/struct timespec now\s*=\s*current_time/struct timespec64 now = current_time/' fs/btrfs/inode.c
+
       - name: 编译内核与设备树
         working-directory: kernel
         run: |
