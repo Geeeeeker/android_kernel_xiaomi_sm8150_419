@@ -100,23 +100,8 @@ jobs:
 
       - name: Create new boot.img with built kernel
         run: |
-          # 解析 bootimg.cfg 中的参数
-          BASE=$(grep 'base' bootimg.cfg | awk '{print $2}')
-          PAGESIZE=$(grep 'pagesize' bootimg.cfg | awk '{print $2}')
-          CMDLINE=$(grep 'cmdline' bootimg.cfg | cut -d'=' -f2- | tr -d '"')
-          KERNEL_OFFSET=$(grep 'kernel_offset' bootimg.cfg | awk '{print $2}')
-          RAMDISK_OFFSET=$(grep 'ramdisk_offset' bootimg.cfg | awk '{print $2}')
-          TAGS_OFFSET=$(grep 'tags_offset' bootimg.cfg | awk '{print $2}')
-          
-          python3 mkbootimg.py --kernel kernel/out/arch/arm64/boot/Image.gz-dtb \
-                    --ramdisk ramdisk.img \
-                    --base "$BASE" \
-                    --pagesize "$PAGESIZE" \
-                    --cmdline "$CMDLINE" \
-                    --kernel_offset "$KERNEL_OFFSET" \
-                    --ramdisk_offset "$RAMDISK_OFFSET" \
-                    --tags_offset "$TAGS_OFFSET" \
-                    --output boot.img
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb new-kernel
+          abootimg --create boot.img -f bootimg.cfg -k new-kernel -r ramdisk.img
 
       - name: Prepare AnyKernel3 zip
         run: |
