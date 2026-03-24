@@ -172,15 +172,15 @@ jobs:
       - name: Repack Kernel Artifacts
         id: pack
         run: |
-          # 查找生成的镜像文件
-          IMAGE=$(find kernel/arch/arm64/boot -name "Image.gz-dtb" -o -name "Image" | head -1)
+          # 查找生成的镜像文件（在 out 目录中）
+          IMAGE=$(find kernel/out/arch/arm64/boot -name "Image.gz-dtb" -o -name "Image" | head -1)
           if [ -z "$IMAGE" ]; then
-            echo "ERROR: No kernel image found in kernel/arch/arm64/boot/"
+            echo "ERROR: No kernel image found in kernel/out/arch/arm64/boot/"
             exit 1
           fi
-          DTBO=$(find kernel/arch/arm64/boot -name "dtbo.img" | head -1)
+          DTBO=$(find kernel/out/arch/arm64/boot -name "dtbo.img" | head -1)
           if [ -z "$DTBO" ]; then
-            echo "ERROR: dtbo.img not found in kernel/arch/arm64/boot/"
+            echo "ERROR: dtbo.img not found in kernel/out/arch/arm64/boot/"
             exit 1
           fi
 
@@ -215,7 +215,9 @@ jobs:
           body: |
             Kernel for ${{ env.DEVICE }} (Android ${{ env.ANDROID_VER }})
             Built from commit ${{ github.sha }}
-          files: ${{ github.workspace }}/${{ env.ZIP_NAME }}
+          files: |
+            ${{ github.workspace }}/${{ env.ZIP_NAME }}
+            ${{ github.workspace }}/usbip-arm64-bundle-with-modules.tar.gz
           draft: false
           prerelease: false
         env:
