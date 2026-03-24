@@ -1,241 +1,222 @@
-name: 编译内核与设备树
+name: Continues testing
 
 on:
   push:
     branches:
-      - dev/*
-      - stable/*
-  workflow_dispatch:
-
-env:
-  AOSP_TOOLCHAIN_BRANCH: android16        # 分支名不包含 "-release"
-  AOSP_CLANG_VERSION: r547379
+      - '**'
+    tags:
+      - '*'
+  pull_request:
 
 jobs:
   build:
-    name: 编译内核与设备树
-    permissions: { contents: write }
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        device: [raphael]
-    steps:
-      - name: 安装软件包
-        env:
-          PACKAGES: >-
-            ccache binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
-            device-tree-compiler dos2unix gcc-aarch64-linux-gnu jq
-        run: |
-          sudo apt update > /dev/null
-          sudo apt install -y ${{ env.PACKAGES }} > /dev/null
+    env:
+      KBUILD_BUILD_USER: NATO66613
+      KBUILD_BUILD_HOST: KREMLIN
 
-      - name: 同步仓库
+    steps:
+      - name: Clone kernel source manually
         run: |
           git clone --depth=1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel.git kernel
 
-      - name: 深度清理设备树源文件
-        working-directory: kernel
-        run: |
-          find arch/arm64/boot/dts -type f \( -name "*.dts" -o -name "*.dtsi" \) -print0 | while IFS= read -r -d '' FILE; do
-            echo "正在清理: $FILE"
-            sed -i '1s/^\xEF\xBB\xBF//' "$FILE"
-            dos2unix "$FILE"
-            tr -cd '\11\12\15\40-\176' < "$FILE" > "${FILE}.clean"
-            mv "${FILE}.clean" "$FILE"
-            echo >> "$FILE"
-          done
-
-      - name: 缓存Clang
-        id: cache-clang
-        uses: actions/cache@v4
-        with:
-          path: clang
-          key: clang-${{ env.AOSP_TOOLCHAIN_BRANCH }}-${{ env.AOSP_CLANG_VERSION }}
-
-      - name: 下载Clang
-        if: steps.cache-clang.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p clang &&
-          curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/${{ env.AOSP_TOOLCHAIN_BRANCH }}-release/clang-${{ env.AOSP_CLANG_VERSION }}.tar.gz" |
-          tar xz -C clang
-
-      - name: 缓存ccache
+      - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: kernel-${{ matrix.device }}
-          restore-keys: kernel-${{ matrix.device }}
-          max-size: 5G
+          create-symlink: true
+          key: kernel-build-cache
+          restore-keys: |
+            kernel-build-cache
+          max-size: '10G'
 
-      - name: 配置内核基础参数 (Kprobes/OverlayFS/LTO等)
+      - name: Restore toolchain cache
+        id: restore-clang
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/r547379
+          key: clang-r547379
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex libelf-dev libncurses-dev libssl-dev unzip zip wget libarchive-tools
+          ccache --show-stats
+
+      - name: Deploy Clang
+        if: steps.restore-clang.outputs.cache-hit != 'true'
+        run: |
+          git clone https://gitlab.com/crdroidandroid/android_prebuilts_clang_host_linux-x86_clang-r547379.git /home/runner/r547379 --depth=1
+
+      - name: Save clang
+        if: steps.restore-clang.outputs.cache-hit != 'true'
+        id: cache-clang-save
+        uses: actions/cache/save@v4
+        with:
+          path: /home/runner/r547379
+          key: clang-r547379
+
+      - name: Configure kernel options (LXC/Docker + user defined)
         working-directory: kernel
         run: |
           DEFCONFIG="arch/arm64/configs/raphael_defconfig"
-          # 开启 Kprobes
-          echo "CONFIG_MODULES=y" >> $DEFCONFIG
-          echo "CONFIG_KPROBES=y" >> $DEFCONFIG
-          echo "CONFIG_HAVE_KPROBES=y" >> $DEFCONFIG
-          echo "CONFIG_KPROBE_EVENTS=y" >> $DEFCONFIG
-          # 开启 OverlayFS
-          echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
-          # 禁用 LTO
-          sed -i 's/CONFIG_LTO=y/CONFIG_LTO=n/' $DEFCONFIG
-          sed -i 's/CONFIG_LTO_CLANG=y/CONFIG_LTO_CLANG=n/' $DEFCONFIG
-          sed -i 's/CONFIG_THINLTO=y/CONFIG_THINLTO=n/' $DEFCONFIG
-          echo "CONFIG_LTO_NONE=y" >> $DEFCONFIG
-          # 禁用 CC_WERROR
-          echo "CONFIG_CC_WERROR=n" >> $DEFCONFIG
-          # 启用 BPF JIT 以解决 bpf_jit_blinding_enabled 未定义错误
-          echo "CONFIG_BPF_JIT=y" >> $DEFCONFIG
-          echo "# CONFIG_BPF_JIT_ALWAYS_ON is not set" >> $DEFCONFIG
-          # 确保 BPF 系统调用开启
-          echo "CONFIG_BPF_SYSCALL=y" >> $DEFCONFIG
-          # 允许段不匹配警告，避免 modpost 报错中止
-          echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DEFCONFIG
 
-      - name: 编译内核与设备树
+          # 先删除可能存在的旧定义，避免冲突
+          for opt in SYSVIPC SYSVIPC_SYSCTL SYSVIPC_COMPAT LOCALVERSION; do
+            sed -i "/^#\?CONFIG_$opt/d" $DEFCONFIG
+          done
+
+          cat << EOF >> $DEFCONFIG
+          CONFIG_UPROBE_EVENTS=y
+          CONFIG_KPROBE_EVENTS=y
+          CONFIG_KPROBES=y
+          CONFIG_HAVE_KPROBES=y
+          CONFIG_KPROBE_EVENT=y
+          CONFIG_KALLSYMS=y
+          CONFIG_UPROBES=y
+          CONFIG_MMU=y
+          CONFIG_PERF_EVENTS=y
+          CONFIG_UPROBE_EVENT=y
+          CONFIG_BPF=y
+          CONFIG_BPF_EVENTS=y
+          CONFIG_BPF_JIT=y
+          CONFIG_DEBUG_INFO_BTF=y
+          CONFIG_HAVE_BPF_JIT=y
+          CONFIG_NF_NAT_IPV6=y
+          CONFIG_IP6_NF_TARGET_MASQUERADE=y
+          CONFIG_NETFILTER_XT_TARGET_CHECKSUM=y
+          CONFIG_FHANDLE=y
+          CONFIG_UNIX_DIAG=y
+          CONFIG_PACKET_DIAG=y
+          CONFIG_NETLINK_DIAG=y
+          CONFIG_VLAN_8021Q=y
+          CONFIG_NET_L3_MASTER_DEV=y
+          CONFIG_NET_NS=y
+          CONFIG_KEYS=y
+          CONFIG_NETFILTER_XT_MARK=y
+          CONFIG_NF_NAT=y
+          CONFIG_NF_NAT_IPV4=y
+          CONFIG_NF_NAT_NEEDED=y
+          CONFIG_SECCOMP_FILTER=y
+          CONFIG_MEMCG_SWAP_ENABLED=y
+          CONFIG_IOSCHED_CFQ=y
+          CONFIG_CGROUP_PERF=y
+          CONFIG_FAIR_GROUP_SCHED=y
+          CONFIG_VXLAN=y
+          CONFIG_CRYPTO=y
+          CONFIG_CRYPTO_AEAD=y
+          CONFIG_CRYPTO_SEQIV=y
+          CONFIG_CRYPTO_GHASH=y
+          CONFIG_XFRM=y
+          CONFIG_XFRM_ALGO=y
+          CONFIG_INET_XFRM_MODE_TRANSPORT=y
+          CONFIG_NF_NAT_FTP=y
+          CONFIG_NF_NAT_TFTP=y
+          CONFIG_AUFS_FS=y
+          CONFIG_DM_THIN_PROVISIONING=y
+          CONFIG_BPF_CGROUP_DEVICE=y
+          CONFIG_MACVLAN=y
+          CONFIG_SYSVIPC=y
+          CONFIG_SYSVIPC_SYSCTL=y
+          CONFIG_SYSVIPC_COMPAT=y
+          CONFIG_EPOLL=y
+          CONFIG_EVENTFD=y
+          CONFIG_SIGNALFD=y
+          CONFIG_INOTIFY_USER=y
+          CONFIG_SHMEM=y
+          CONFIG_TMPFS=y
+          CONFIG_TMPFS_POSIX_ACL=y
+          CONFIG_TMPFS_XATTR=y
+          CONFIG_DOCKER=y
+          CONFIG_PID_NS=y
+          CONFIG_IPC_NS=y
+          CONFIG_UTS_NS=y
+          CONFIG_VETH=y
+          CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y
+          CONFIG_NETFILTER_XT_MATCH_IPVS=y
+          CONFIG_POSIX_MQUEUE=y
+          CONFIG_CGROUP_PIDS=y
+          CONFIG_BLK_DEV_THROTTLING=y
+          CONFIG_CGROUP_PERF=y
+          CONFIG_VXLAN=y
+          CONFIG_CGROUP_HUGETLB=y
+          CONFIG_NET_CLS_CGROUP=y
+          CONFIG_CGROUP_NET_PRIO=y
+          CONFIG_IP_VS=y
+          CONFIG_IP_VS_NFCT=y
+          CONFIG_IP_VS_PROTO_TCP=y
+          CONFIG_IP_VS_PROTO_UDP=y
+          CONFIG_IP_VS_RR=y
+          CONFIG_SECURITY_APPARMOR=y
+          EOF
+
+          # 设置 LOCALVERSION
+          echo 'CONFIG_LOCALVERSION="-Geeeeeker-perf"' >> $DEFCONFIG
+
+      - name: Build the kernel with ccache
         working-directory: kernel
         run: |
-          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
-          export KBUILD_BUILD_USER=${{ github.repository_owner }}
-          export KBUILD_BUILD_HOST=github-runner
-          export KBUILD_BUILD_TIMESTAMP=$(date -u -d "@$(git log -1 --format=%at)" +"%a %b %d %H:%M:%S %Z %Y")
-          make -j$(nproc --all) \
-            CC="ccache clang" \
-            ARCH=arm64 \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            O=out \
-            KCFLAGS="-Wno-error=strict-prototypes" \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            raphael_defconfig Image.gz dtbs
+          export CLANG_PATH=$HOME/r547379/bin
+          export PATH=${CLANG_PATH}:${PATH}
 
-      - name: 打包 (AnyKernel3)
+          make LLVM=1 LLVM_IAS=1 CC="ccache clang" raphael_defconfig
+          make LLVM=1 LLVM_IAS=1 CC="ccache clang" -j$(grep -c ^processor /proc/cpuinfo)
+
+          # 显式生成所需的镜像文件
+          make LLVM=1 LLVM_IAS=1 CC="ccache clang" Image.gz-dtb dtbo.img -j$(nproc)
+
+          ccache --show-stats
+          ccache --show-config
+        shell: bash
+
+      # ========== 打包内核刷写包（AnyKernel3） ==========
+      - name: Repack Kernel Artifacts
+        id: pack
         run: |
-          git clone https://github.com/osm0sis/AnyKernel3 --depth=1 ak3
-          # 复制内核镜像
-          cp kernel/out/arch/arm64/boot/Image.gz ak3/
-          # 从编译输出复制设备树
-          mkdir -p ak3/dtb ak3/dtbo
-          DTB_FILE=$(find kernel/out/arch/arm64/boot/dts -name "sm8150-xiaomi.dtb" | head -n1)
-          if [ -z "$DTB_FILE" ]; then
-            echo "::error::sm8150-xiaomi.dtb not found in out directory"
+          # 查找生成的镜像文件
+          IMAGE=$(find kernel/arch/arm64/boot -name "Image.gz-dtb" -o -name "Image" | head -1)
+          if [ -z "$IMAGE" ]; then
+            echo "ERROR: No kernel image found in kernel/arch/arm64/boot/"
             exit 1
           fi
-          cp "$DTB_FILE" ak3/dtb/dtb
-          DTBO_FILE=$(find kernel/out/arch/arm64/boot/dts -name "raphael*.dtbo" | head -n1)
-          if [ -z "$DTBO_FILE" ]; then
-            echo "::error::raphael*.dtbo not found in out directory"
+          DTBO=$(find kernel/arch/arm64/boot -name "dtbo.img" | head -1)
+          if [ -z "$DTBO" ]; then
+            echo "ERROR: dtbo.img not found in kernel/arch/arm64/boot/"
             exit 1
           fi
-          cp "$DTBO_FILE" ak3/dtbo/dtbo
-          cd ak3
-          # 生成 anykernel.sh
-          cat > anykernel.sh << EOF
-          properties() {
-            kernel.string=Kernel for ${{ matrix.device }}
-            device.name1=${{ matrix.device }}
-            do.devicecheck=1
-          }
-          kernel=Image.gz
-          ramdisk_compression=auto
-          patch_vbmeta_flag=auto
-          is_slot_device=auto
-          block=auto
-          . tools/ak3-core.sh
-          split_boot
-          flash_boot
-          EOF
-          # 打包
-          ZIP_NAME="Anykernel3-${{ matrix.device }}-${{ env.AOSP_TOOLCHAIN_BRANCH }}.zip"
-          zip -qr9 "$ZIP_NAME" * -x .git .github README.md *placeholder
-          cd ..
 
-      - name: 上传文件 (AnyKernel3)
-        uses: actions/upload-artifact@v5
+          git clone --depth=1 https://github.com/SOVIET-ANDROID/AnyKernel3.git $HOME/AnyKernel3
+          cp "$IMAGE" $HOME/AnyKernel3/Image.gz-dtb
+          cp "$DTBO" $HOME/AnyKernel3/dtbo.img
+
+          DEVICE="raphael"
+          ANDROID_VER="16.0"
+          ZIP_NAME="anykernel3-${DEVICE}-${ANDROID_VER}.zip"
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+          echo "DEVICE=${DEVICE}" >> $GITHUB_ENV
+          echo "ANDROID_VER=${ANDROID_VER}" >> $GITHUB_ENV
+
+          cd $HOME/AnyKernel3
+          zip -r9 ${ZIP_NAME} * -x .git README.md *placeholder
+          mv ${ZIP_NAME} $GITHUB_WORKSPACE/
+          cd $GITHUB_WORKSPACE
+
+      - name: Upload Kernel Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: kernel-${{ matrix.device }}-ak3
-          path: ak3/Anykernel3-${{ matrix.device }}-${{ env.AOSP_TOOLCHAIN_BRANCH }}.zip
+          name: ${{ env.ZIP_NAME }}
+          path: ${{ github.workspace }}/${{ env.ZIP_NAME }}
 
-      - name: 打包 (boot.img) – 若可获取官方 boot.img 则生成
-        id: boot
-        run: |
-          git clone https://android.googlesource.com/platform/system/tools/mkbootimg --depth=1 mkbootimg
-          cd mkbootimg
-          # 尝试从 LineageOS API 获取官方 boot.img 的下载地址
-          BOOT_URL=$(curl -fLSs "https://download.lineageos.org/api/v2/devices/${{ matrix.device }}/builds" 2>/dev/null | jq -r '.[0].files[1].url // empty') || true
-          if [ -z "$BOOT_URL" ]; then
-            echo "::warning::Unable to fetch boot.img URL from LineageOS API. Skipping boot.img generation."
-            exit 0
-          fi
-          echo "Downloading boot.img from $BOOT_URL"
-          curl -LSs "$BOOT_URL" -o boot.img
-          ./unpack_bootimg.py --out out --boot_img boot.img --format mkbootimg > mkbootimg_args.txt
-          mkbootimg_args=$(cat mkbootimg_args.txt)
-          # 用我们编译的内核替换解包出来的 kernel
-          cp ../kernel/out/arch/arm64/boot/Image.gz out/kernel
-          # 从编译输出替换 dtb
-          DTB_FILE=$(find ../kernel/out/arch/arm64/boot/dts -name "sm8150-xiaomi.dtb" | head -n1)
-          if [ -n "$DTB_FILE" ]; then
-            cp "$DTB_FILE" out/dtb
-          fi
-          # 添加 dtbo
-          DTBO_FILE=$(find ../kernel/out/arch/arm64/boot/dts -name "raphael*.dtbo" | head -n1)
-          if [ -n "$DTBO_FILE" ]; then
-            cp "$DTBO_FILE" out/dtbo
-          else
-            echo "::warning::No dtbo file found, skipping dtbo in boot image"
-          fi
-          # 检查 mkbootimg_args 是否已包含 --dtbo，若无则追加
-          if [[ "$mkbootimg_args" != *"--dtbo"* ]] && [ -f out/dtbo ]; then
-            mkbootimg_args="$mkbootimg_args --dtbo dtbo"
-          fi
-          # 执行打包命令
-          eval "./mkbootimg.py $mkbootimg_args -o boot-lineage-${{ matrix.device }}.img"
-          echo "bootimg_generated=true" >> $GITHUB_OUTPUT
-
-      - name: 上传文件 (boot.img)
-        if: steps.boot.outputs.bootimg_generated == 'true'
-        uses: actions/upload-artifact@v5
+      - name: Create Release and Upload Asset
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
         with:
-          name: kernel-${{ matrix.device }}-boot
-          path: mkbootimg/boot-lineage-${{ matrix.device }}.img
-
-  release:
-    name: 发布
-    permissions: { contents: write }
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: 获取构建产物
-        uses: actions/download-artifact@v6
-        with:
-          path: kernel
-          pattern: kernel-*
-          merge-multiple: true
-
-      - name: 获取当前时间
-        id: time
-        run: |
-          echo "time=$(TZ='Asia/Shanghai' date -u +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
-          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
-
-      - name: 下载ci管理器
-        continue-on-error: true
-        uses: dawidd6/action-download-artifact@v11
-        with:
-          repo: rsuntk/KernelSU
-          workflow_conclusion: success
-          name: manager
-          workflow: build-manager.yml
-          path: manager
-
-      - name: 发布
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: rel-${{ steps.time.outputs.timestamp }}
-          name: Kernel build ${{ steps.time.outputs.time }}
-          prerelease: ${{ startsWith(github.ref_name, 'dev/') }}
-          files: |
-            kernel/*
-            manager/*
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            Kernel for ${{ env.DEVICE }} (Android ${{ env.ANDROID_VER }})
+            Built from commit ${{ github.sha }}
+          files: ${{ github.workspace }}/${{ env.ZIP_NAME }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
