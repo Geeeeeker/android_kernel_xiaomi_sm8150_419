@@ -59,17 +59,16 @@ jobs:
           make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" O=out raphael_defconfig
           
           # ---- 写入额外配置项 ----
-          # 使用 scripts/config 工具修改 .config
           cd out
-          # 启用 y 选项
-          for cfg in CONFIG_SYSVIPC CONFIG_SYSVIPC_SYSCTL CONFIG_SYSVIPC_COMPAT CONFIG_EPOLL CONFIG_EVENTFD CONFIG_SIGNALFD CONFIG_INOTIFY_USER CONFIG_SHMEM CONFIG_TMPFS CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR; do
+          # 启用 y 选项（包括 SECTION_MISMATCH_WARN_ONLY）
+          for cfg in CONFIG_SYSVIPC CONFIG_SYSVIPC_SYSCTL CONFIG_SYSVIPC_COMPAT CONFIG_EPOLL CONFIG_EVENTFD CONFIG_SIGNALFD CONFIG_INOTIFY_USER CONFIG_SHMEM CONFIG_TMPFS CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR CONFIG_SECTION_MISMATCH_WARN_ONLY; do
             ../scripts/config --enable ${cfg#CONFIG_}
           done
           # 启用模块选项（=m）
           for cfg in CONFIG_USBIP_CORE CONFIG_USBIP_VHCI_HCD CONFIG_USBIP_HOST; do
             ../scripts/config --module ${cfg#CONFIG_}
           done
-          # 可选：确保模块支持已开启（通常 defconfig 已有，但保险）
+          # 确保模块支持已开启
           ../scripts/config --enable MODULES
           # 处理依赖关系
           make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" olddefconfig
