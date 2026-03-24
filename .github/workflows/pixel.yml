@@ -55,70 +55,45 @@ jobs:
           export CLANG_PATH=$HOME/r547379/bin
           export PATH=${CLANG_PATH}:${PATH}
           
-          # 生成默认配置
           make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" O=out raphael_defconfig
           
-          # ---- 写入额外配置项 ----
           cd out
-          # 启用 y 选项（不含 MODVERSIONS）
           for cfg in CONFIG_SYSVIPC CONFIG_SYSVIPC_SYSCTL CONFIG_SYSVIPC_COMPAT CONFIG_EPOLL CONFIG_EVENTFD CONFIG_SIGNALFD CONFIG_INOTIFY_USER CONFIG_SHMEM CONFIG_TMPFS CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR CONFIG_SECTION_MISMATCH_WARN_ONLY; do
             ../scripts/config --enable ${cfg#CONFIG_}
           done
-          # 启用模块选项（=m）
           for cfg in CONFIG_USBIP_CORE CONFIG_USBIP_VHCI_HCD CONFIG_USBIP_HOST; do
             ../scripts/config --module ${cfg#CONFIG_}
           done
-          # 确保模块支持已开启
           ../scripts/config --enable MODULES
-          # 显式禁用 MODVERSIONS
           ../scripts/config --disable MODVERSIONS
-          # 处理依赖关系
           make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" olddefconfig
-          
-          # ---- 强制验证并修正配置（防止 olddefconfig 重置）----
-          echo "=== 检查配置状态 ==="
-          grep -E "CONFIG_SYSVIPC|CONFIG_USBIP_CORE" .config || true
-          # 如果 CONFIG_SYSVIPC 仍未启用，直接追加
-          if ! grep -q "CONFIG_SYSVIPC=y" .config; then
-            echo "CONFIG_SYSVIPC 未启用，强制写入"
-            sed -i 's/# CONFIG_SYSVIPC is not set/CONFIG_SYSVIPC=y/' .config
-            sed -i 's/# CONFIG_SYSVIPC_SYSCTL is not set/CONFIG_SYSVIPC_SYSCTL=y/' .config
-            sed -i 's/# CONFIG_SYSVIPC_COMPAT is not set/CONFIG_SYSVIPC_COMPAT=y/' .config
-            # 确保 USBIP 相关配置
-            echo "CONFIG_USBIP_CORE=m" >> .config
-            echo "CONFIG_USBIP_VHCI_HCD=m" >> .config
-            echo "CONFIG_USBIP_HOST=m" >> .config
-            make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" olddefconfig
-          fi
-          echo "=== 最终配置检查 ==="
-          grep -E "CONFIG_SYSVIPC|CONFIG_USBIP_CORE" .config || true
           cd ..
-          # ---------------------
           
-          # 正式构建
           make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" O=out -j$(nproc)
-          
-          # 保存最终配置供调试
-          cp out/.config $GITHUB_WORKSPACE/kernel.config
           
           ccache --show-stats
           ccache --show-config
 
-      - name: Upload kernel config (for debug)
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel.config
-          path: kernel.config
+      - name: Verify kernel config
+        run: |
+          echo "=== 内核配置检查 ==="
+          grep -E "CONFIG_SYSVIPC|CONFIG_USBIP_CORE" kernel/out/.config || true
+          echo "=== USBIP 模块检查 ==="
+          ls -l kernel/out/drivers/usb/usbip/*.ko || echo "未找到 USBIP 模块（可能未编译）"
 
       - name: Download reference boot.img
         run: |
           wget https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel/releases/download/2.0/raphael_boot.img -O raphael_boot.img
 
-      - name: Create new boot.img with built kernel (using abootimg)
+      - name: Create new boot.img
         run: |
           abootimg -x raphael_boot.img
           mv initrd.img ramdisk.img
+          # 确认新内核存在且非空
+          ls -lh kernel/out/arch/arm64/boot/Image.gz-dtb
           abootimg --create boot.img -f bootimg.cfg -k kernel/out/arch/arm64/boot/Image.gz-dtb -r ramdisk.img
+          # 验证新 boot.img 包含内核（可选）
+          abootimg -i boot.img | grep "kernel size"
 
       - name: Prepare AnyKernel3 zip
         run: |
@@ -127,17 +102,20 @@ jobs:
           cp kernel/out/arch/arm64/boot/dtbo.img $HOME/AnyKernel3/
           
           cd $HOME/AnyKernel3
+          # 删除 .git 目录（避免打包进去）
+          rm -rf .git
+          
           # 修改 anykernel.sh
           sed -i 's/^block=bootdevice\/by-name\/boot$/block=bootdevice\/by-name\/boot\nflash_boot boot.img/' anykernel.sh
           sed -i 's/^do.devicecheck=.*/do.devicecheck=0/' anykernel.sh
           sed -i 's/^do.cleanup=.*/do.cleanup=1/' anykernel.sh
           
-          # 创建 ZIP（确保包含所有文件）
-          zip -r9 "$GITHUB_WORKSPACE/kernel.zip" .
-          # 验证 ZIP 完整性
-          echo "=== ZIP 内容 ==="
-          unzip -l "$GITHUB_WORKSPACE/kernel.zip"
-          cd ..
+          # 打包（只打包当前目录内容，不包括父目录）
+          zip -r9 "$GITHUB_WORKSPACE/kernel.zip" *
+          
+          # 列出 zip 内容（不应包含 .git）
+          echo "=== ZIP 内容（前20行）==="
+          unzip -l "$GITHUB_WORKSPACE/kernel.zip" | head -20
 
       - name: Upload kernel boot.img
         uses: actions/upload-artifact@v4
