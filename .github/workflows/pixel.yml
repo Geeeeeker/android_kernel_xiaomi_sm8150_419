@@ -1,3 +1,25 @@
+name: 编译内核与设备树
+
+on:
+  push:
+    branches:
+      - dev/*
+      - stable/*
+  workflow_dispatch:
+
+env:
+  AOSP_TOOLCHAIN_BRANCH: android16        # 分支名不包含 "-release"
+  AOSP_CLANG_VERSION: r547379
+
+jobs:
+  build:
+    name: 编译内核与设备树
+    permissions: { contents: write }
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        device: [raphael]
+    steps:
       - name: 安装软件包
         env:
           PACKAGES: >-
