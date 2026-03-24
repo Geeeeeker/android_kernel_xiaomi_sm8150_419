@@ -29,12 +29,9 @@ jobs:
           sudo apt update > /dev/null
           sudo apt install -y ${{ env.PACKAGES }} > /dev/null
 
-      - name: 同步仓库
-        uses: actions/checkout@v4
-        with:
-          repository: Geeeeeker/kernel_xiaomi_raphael-pixel   # 指定内核仓库
-          ref: 16                                            # 指定分支
-          path: kernel
+        - name: 同步仓库
+          run: |
+            git clone --depth=1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel.git kernel
 
       - name: 深度清理设备树源文件
         working-directory: kernel
