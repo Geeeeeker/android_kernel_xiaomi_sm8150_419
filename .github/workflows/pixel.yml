@@ -1,24 +1,3 @@
-name: 编译内核与设备树
-
-on:
-  push:
-    branches:
-      - dev/*
-      - stable/*
-  workflow_dispatch:
-
-env:
-  AOSP_TOOLCHAIN_BRANCH: android16        # 分支名不包含 "-release"
-  AOSP_CLANG_VERSION: r547379
-
-jobs:
-  build:
-    name: 编译内核与设备树
-    permissions: { contents: write }
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        device: [raphael]
     steps:
       - name: 安装软件包
         env:
@@ -29,9 +8,9 @@ jobs:
           sudo apt update > /dev/null
           sudo apt install -y ${{ env.PACKAGES }} > /dev/null
 
-        - name: 同步仓库
-          run: |
-            git clone --depth=1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel.git kernel
+      - name: 同步仓库
+        run: |
+          git clone --depth=1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel.git kernel
 
       - name: 深度清理设备树源文件
         working-directory: kernel
