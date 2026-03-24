@@ -33,7 +33,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex libelf-dev libncurses-dev libssl-dev unzip zip wget libarchive-tools
+          sudo apt-get install -y bc bison build-essential ccache curl flex libelf-dev libncurses-dev libssl-dev unzip zip wget libarchive-tools abootimg android-sdk-mkbootimg
           ccache --show-stats
 
       - name: Deploy Clang
@@ -60,8 +60,8 @@ jobs:
           
           # ---- 写入额外配置项 ----
           cd out
-          # 启用 y 选项（包括 SECTION_MISMATCH_WARN_ONLY）
-          for cfg in CONFIG_SYSVIPC CONFIG_SYSVIPC_SYSCTL CONFIG_SYSVIPC_COMPAT CONFIG_EPOLL CONFIG_EVENTFD CONFIG_SIGNALFD CONFIG_INOTIFY_USER CONFIG_SHMEM CONFIG_TMPFS CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR CONFIG_SECTION_MISMATCH_WARN_ONLY; do
+          # 启用 y 选项（包括 SECTION_MISMATCH_WARN_ONLY 和 MODVERSIONS）
+          for cfg in CONFIG_SYSVIPC CONFIG_SYSVIPC_SYSCTL CONFIG_SYSVIPC_COMPAT CONFIG_EPOLL CONFIG_EVENTFD CONFIG_SIGNALFD CONFIG_INOTIFY_USER CONFIG_SHMEM CONFIG_TMPFS CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR CONFIG_SECTION_MISMATCH_WARN_ONLY CONFIG_MODVERSIONS; do
             ../scripts/config --enable ${cfg#CONFIG_}
           done
           # 启用模块选项（=m）
@@ -81,28 +81,72 @@ jobs:
           ccache --show-stats
           ccache --show-config
 
-      - name: Prepare AnyKernel3
+      - name: Download reference boot.img
         run: |
+          wget https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel/releases/download/2.0/raphael_boot.img -O raphael_boot.img
+
+      - name: Extract ramdisk and boot parameters
+        run: |
+          # 解包参考 boot.img
+          abootimg -x raphael_boot.img
+          # 重命名提取的 ramdisk 为 initrd.img（abootimg 输出为 initrd.img）
+          mv initrd.img ramdisk.img
+
+      - name: Create new boot.img with built kernel
+        run: |
+          # 解析 bootimg.cfg 中的参数
+          BASE=$(grep 'base' bootimg.cfg | awk '{print $2}')
+          PAGESIZE=$(grep 'pagesize' bootimg.cfg | awk '{print $2}')
+          CMDLINE=$(grep 'cmdline' bootimg.cfg | cut -d'=' -f2- | tr -d '"')
+          KERNEL_OFFSET=$(grep 'kernel_offset' bootimg.cfg | awk '{print $2}')
+          RAMDISK_OFFSET=$(grep 'ramdisk_offset' bootimg.cfg | awk '{print $2}')
+          TAGS_OFFSET=$(grep 'tags_offset' bootimg.cfg | awk '{print $2}')
+          
+          # 使用 mkbootimg 重新打包
+          mkbootimg --kernel kernel/out/arch/arm64/boot/Image.gz-dtb \
+                    --ramdisk ramdisk.img \
+                    --base $BASE \
+                    --pagesize $PAGESIZE \
+                    --cmdline "$CMDLINE" \
+                    --kernel_offset $KERNEL_OFFSET \
+                    --ramdisk_offset $RAMDISK_OFFSET \
+                    --tags_offset $TAGS_OFFSET \
+                    --output new_boot.img
+          
+          # 将最终 boot.img 复制到工作区根目录
+          cp new_boot.img boot.img
+
+      - name: Prepare AnyKernel3 zip
+        run: |
+          # 克隆 AnyKernel3
           git clone --depth=1 https://github.com/SOVIET-ANDROID/AnyKernel3.git $HOME/AnyKernel3
-          cp kernel/out/arch/arm64/boot/Image.gz-dtb $HOME/AnyKernel3/
+          
+          # 将新生成的 boot.img 和 dtbo.img 放入 AnyKernel3 目录
+          cp boot.img $HOME/AnyKernel3/
           cp kernel/out/arch/arm64/boot/dtbo.img $HOME/AnyKernel3/
           
-          BRANCH=$(echo "${GITHUB_REF#refs/heads/}" | sed 's|/|-|g')
-          COMMIT_HASH=$(echo "$GITHUB_SHA" | cut -c1-6)
-          ZIP_NAME="${BRANCH}-${COMMIT_HASH}.zip"
-          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+          # 修改 anykernel.sh 使其刷写 boot.img 而非替换内核
+          cd $HOME/AnyKernel3
+          # 如果 anykernel.sh 不存在则跳过（实际存在），这里追加 flash_boot 命令
+          sed -i 's/^block=bootdevice\/by-name\/boot$/block=bootdevice\/by-name\/boot\nflash_boot boot.img/' anykernel.sh
           
-          mv "$HOME/AnyKernel3" "$GITHUB_WORKSPACE/AnyKernel3"
-
-      - name: Package kernel zip
-        run: |
-          cd AnyKernel3
-          zip -r9 "../${ZIP_NAME}" *
+          # 可选：禁用设备检查以加快刷写
+          sed -i 's/^do.devicecheck=.*/do.devicecheck=0/' anykernel.sh
+          # 确保在刷写后清理
+          sed -i 's/^do.cleanup=.*/do.cleanup=1/' anykernel.sh
+          
+          # 打包 ZIP
+          zip -r9 "$GITHUB_WORKSPACE/kernel.zip" *
           cd ..
-          echo "Packaged ${ZIP_NAME}"
 
-      - name: Upload Kernel Artifact
+      - name: Upload kernel boot.img
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ZIP_NAME }}
-          path: ${{ github.workspace }}/${{ env.ZIP_NAME }}
+          name: boot.img
+          path: boot.img
+
+      - name: Upload kernel zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-anykernel3.zip
+          path: kernel.zip
