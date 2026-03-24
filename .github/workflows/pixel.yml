@@ -99,11 +99,6 @@ jobs:
         working-directory: kernel
         run: |
 
-          while read symbol; do
-            sed -i "/^${symbol}=/d" .config
-            sed -i "/^# ${symbol} is not set/d" .config
-          done < symbols_to_clean.txt
-
           # 添加 LXC/Docker 必需的配置
           echo "CONFIG_DOCKER=y" >> .config
           echo "# CONFIG_CFS_BANDWIDTH is not set" >> .config
