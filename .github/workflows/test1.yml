@@ -212,7 +212,8 @@ jobs:
               # 编译 USB/IP 用户态工具
               cd tools/usb/usbip
               ./autogen.sh
-              ./configure --prefix=/usr
+              # 添加 CFLAGS 以忽略 stringop-truncation 警告
+              ./configure CFLAGS=\"-Wno-error -Wno-error=stringop-truncation\" --prefix=/usr
               make -j\$(nproc)
 
               # 复制二进制和库
