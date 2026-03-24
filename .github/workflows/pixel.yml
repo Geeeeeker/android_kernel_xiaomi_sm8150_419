@@ -74,14 +74,41 @@ jobs:
           ../scripts/config --disable MODVERSIONS
           # 处理依赖关系
           make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" olddefconfig
+          
+          # ---- 强制验证并修正配置（防止 olddefconfig 重置）----
+          echo "=== 检查配置状态 ==="
+          grep -E "CONFIG_SYSVIPC|CONFIG_USBIP_CORE" .config || true
+          # 如果 CONFIG_SYSVIPC 仍未启用，直接追加
+          if ! grep -q "CONFIG_SYSVIPC=y" .config; then
+            echo "CONFIG_SYSVIPC 未启用，强制写入"
+            sed -i 's/# CONFIG_SYSVIPC is not set/CONFIG_SYSVIPC=y/' .config
+            sed -i 's/# CONFIG_SYSVIPC_SYSCTL is not set/CONFIG_SYSVIPC_SYSCTL=y/' .config
+            sed -i 's/# CONFIG_SYSVIPC_COMPAT is not set/CONFIG_SYSVIPC_COMPAT=y/' .config
+            # 确保 USBIP 相关配置
+            echo "CONFIG_USBIP_CORE=m" >> .config
+            echo "CONFIG_USBIP_VHCI_HCD=m" >> .config
+            echo "CONFIG_USBIP_HOST=m" >> .config
+            make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" olddefconfig
+          fi
+          echo "=== 最终配置检查 ==="
+          grep -E "CONFIG_SYSVIPC|CONFIG_USBIP_CORE" .config || true
           cd ..
           # ---------------------
           
           # 正式构建
           make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" O=out -j$(nproc)
           
+          # 保存最终配置供调试
+          cp out/.config $GITHUB_WORKSPACE/kernel.config
+          
           ccache --show-stats
           ccache --show-config
+
+      - name: Upload kernel config (for debug)
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel.config
+          path: kernel.config
 
       - name: Download reference boot.img
         run: |
@@ -89,10 +116,8 @@ jobs:
 
       - name: Create new boot.img with built kernel (using abootimg)
         run: |
-          # 提取参考 boot.img 的配置和 ramdisk
           abootimg -x raphael_boot.img
           mv initrd.img ramdisk.img
-          # 用新内核重新打包
           abootimg --create boot.img -f bootimg.cfg -k kernel/out/arch/arm64/boot/Image.gz-dtb -r ramdisk.img
 
       - name: Prepare AnyKernel3 zip
@@ -102,11 +127,16 @@ jobs:
           cp kernel/out/arch/arm64/boot/dtbo.img $HOME/AnyKernel3/
           
           cd $HOME/AnyKernel3
-          # 修改 anykernel.sh 以刷写整个 boot.img
+          # 修改 anykernel.sh
           sed -i 's/^block=bootdevice\/by-name\/boot$/block=bootdevice\/by-name\/boot\nflash_boot boot.img/' anykernel.sh
           sed -i 's/^do.devicecheck=.*/do.devicecheck=0/' anykernel.sh
           sed -i 's/^do.cleanup=.*/do.cleanup=1/' anykernel.sh
-          zip -r9 "$GITHUB_WORKSPACE/kernel.zip" *
+          
+          # 创建 ZIP（确保包含所有文件）
+          zip -r9 "$GITHUB_WORKSPACE/kernel.zip" .
+          # 验证 ZIP 完整性
+          echo "=== ZIP 内容 ==="
+          unzip -l "$GITHUB_WORKSPACE/kernel.zip"
           cd ..
 
       - name: Upload kernel boot.img
