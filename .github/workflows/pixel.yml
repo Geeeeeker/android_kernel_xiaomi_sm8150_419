@@ -1,343 +1,110 @@
-name: 编译内核与设备树 (含 USB/IP)
+name: Continuous Testing
 
 on:
   push:
-    branches:
-      - dev/*
-      - stable/*
-  workflow_dispatch:
-
-env:
-  AOSP_TOOLCHAIN_BRANCH: android16
-  AOSP_CLANG_VERSION: r547379
-  BOOT_IMG_URL: https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel/releases/download/2.0/raphael_boot.img
+  pull_request:
 
 jobs:
   build:
-    name: 编译内核与设备树
-    permissions: { contents: write }
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        device: [raphael]
+    env:
+      KBUILD_BUILD_USER: NATO66613
+      KBUILD_BUILD_HOST: KREMLIN
     steps:
-      - name: 安装基础软件包
-        run: |
-          sudo apt update > /dev/null
-          sudo apt install -y \
-            ccache binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi \
-            device-tree-compiler dos2unix gcc-aarch64-linux-gnu \
-            autoconf libtool pkg-config flex bison patchelf \
-            kmod bc libelf-dev
+      - name: Clone kernel source
+        run: git clone --depth 1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel kernel
 
-      - name: 设置 QEMU 用户态支持
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-user-static binfmt-support
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
-      - name: 同步仓库
-        uses: actions/checkout@v4
-        with:
-          path: kernel
-
-      - name: 深度清理设备树源文件
-        working-directory: kernel
-        run: |
-          find arch/arm64/boot/dts -type f \( -name "*.dts" -o -name "*.dtsi" \) -print0 | while IFS= read -r -d '' FILE; do
-            echo "正在清理: $FILE"
-            sed -i '1s/^\xEF\xBB\xBF//' "$FILE"
-            dos2unix "$FILE"
-            tr -cd '\11\12\15\40-\176' < "$FILE" > "${FILE}.clean"
-            mv "${FILE}.clean" "$FILE"
-            echo >> "$FILE"
-          done
-
-      - name: 缓存 Clang
-        id: cache-clang
-        uses: actions/cache@v4
-        with:
-          path: clang
-          key: clang-${{ env.AOSP_TOOLCHAIN_BRANCH }}-${{ env.AOSP_CLANG_VERSION }}
-
-      - name: 下载 Clang
-        if: steps.cache-clang.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p clang &&
-          curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/${{ env.AOSP_TOOLCHAIN_BRANCH }}-release/clang-${{ env.AOSP_CLANG_VERSION }}.tar.gz" |
-          tar xz -C clang
-
-      - name: 缓存 ccache
+      - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: kernel-${{ matrix.device }}
-          restore-keys: kernel-${{ matrix.device }}
-          max-size: 5G
+          create-symlink: true
+          key: kernel-build-cache
+          restore-keys: |
+            kernel-build-cache
+          max-size: '10G'
 
-      - name: 配置内核基础参数
+      - name: Restore toolchain cache
+        id: restore-clang
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/r547379
+          key: clang-r547379
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex libelf-dev libncurses-dev libssl-dev unzip zip wget libarchive-tools
+          ccache --show-stats
+
+      - name: Deploy Clang
+        if: steps.restore-clang.outputs.cache-hit != 'true'
+        run: |
+          git clone https://gitlab.com/crdroidandroid/android_prebuilts_clang_host_linux-x86_clang-r547379.git /home/runner/r547379 --depth=1
+
+      - name: Save clang
+        if: steps.restore-clang.outputs.cache-hit != 'true'
+        id: cache-clang-save
+        uses: actions/cache/save@v4
+        with:
+          path: /home/runner/r547379
+          key: clang-r547379
+
+      - name: Configure and build kernel
         working-directory: kernel
         run: |
-          DEFCONFIG="arch/arm64/configs/raphael_defconfig"
-          # 原有配置
-          echo "CONFIG_MODULES=y" >> $DEFCONFIG
-          echo "CONFIG_KPROBES=y" >> $DEFCONFIG
-          echo "CONFIG_HAVE_KPROBES=y" >> $DEFCONFIG
-          echo "CONFIG_KPROBE_EVENTS=y" >> $DEFCONFIG
-          echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
-          sed -i 's/CONFIG_LTO=y/CONFIG_LTO=n/' $DEFCONFIG
-          sed -i 's/CONFIG_LTO_CLANG=y/CONFIG_LTO_CLANG=n/' $DEFCONFIG
-          sed -i 's/CONFIG_THINLTO=y/CONFIG_THINLTO=n/' $DEFCONFIG
-          echo "CONFIG_LTO_NONE=y" >> $DEFCONFIG
-          echo "CONFIG_CC_WERROR=n" >> $DEFCONFIG
-          echo "CONFIG_BPF_JIT=y" >> $DEFCONFIG
-          echo "# CONFIG_BPF_JIT_ALWAYS_ON is not set" >> $DEFCONFIG
-          echo "CONFIG_BPF_SYSCALL=y" >> $DEFCONFIG
-
-          # 新增配置
-          echo "CONFIG_SYSVIPC=y" >> $DEFCONFIG
-          echo "CONFIG_SYSVIPC_SYSCTL=y" >> $DEFCONFIG
-          echo "CONFIG_SYSVIPC_COMPAT=y" >> $DEFCONFIG
-          echo "CONFIG_EPOLL=y" >> $DEFCONFIG
-          echo "CONFIG_EVENTFD=y" >> $DEFCONFIG
-          echo "CONFIG_SIGNALFD=y" >> $DEFCONFIG
-          echo "CONFIG_INOTIFY_USER=y" >> $DEFCONFIG
-          echo "CONFIG_SHMEM=y" >> $DEFCONFIG
-          echo "CONFIG_TMPFS=y" >> $DEFCONFIG
-          echo "CONFIG_TMPFS_POSIX_ACL=y" >> $DEFCONFIG
-          echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG
-          # USB/IP 配置
-          echo "CONFIG_USBIP_CORE=m" >> $DEFCONFIG
-          echo "CONFIG_USBIP_VHCI_HCD=m" >> $DEFCONFIG
-          echo "CONFIG_USBIP_HOST=m" >> $DEFCONFIG
-          # 模块版本控制
-          sed -i '/CONFIG_MODVERSIONS/d' $DEFCONFIG
-          echo "CONFIG_MODVERSIONS=y" >> $DEFCONFIG
-          echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DEFCONFIG
-
-      - name: 编译内核与设备树
-        working-directory: kernel
-        run: |
-          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
-          export KBUILD_BUILD_USER=${{ github.repository_owner }}
-          export KBUILD_BUILD_HOST=github-runner
-          export KBUILD_BUILD_TIMESTAMP=$(date -u -d "@$(git log -1 --format=%at)" +"%a %b %d %H:%M:%S %Z %Y")
-          make -j$(nproc --all) \
-            CC="ccache clang" \
-            ARCH=arm64 \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            O=out \
-            KCFLAGS="-Wno-error=strict-prototypes" \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            raphael_defconfig Image.gz dtbs
-
-      - name: 编译 USB/IP 内核模块 (主机)
-        working-directory: kernel
-        run: |
-          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
-          make -j$(nproc --all) \
-            ARCH=arm64 \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            O=out \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            M=drivers/usb/usbip \
-            modules
-          # 将生成的 .ko 文件复制到输出目录
-          mkdir -p $GITHUB_WORKSPACE/usbip-out/modules
-          cp out/drivers/usb/usbip/*.ko $GITHUB_WORKSPACE/usbip-out/modules/
-
-      - name: 编译 USB/IP 用户态工具 (Docker 容器)
-        run: |
-          mkdir -p usbip-out/{bin,libs}
-          docker run --rm --platform linux/arm64 \
-            -v ${{ github.workspace }}/kernel:/kernel-src \
-            -v ${{ github.workspace }}/usbip-out:/output \
-            -w /kernel-src \
-            arm64v8/ubuntu:22.04 \
-            bash -c "
-              set -e
-              export DEBIAN_FRONTEND=noninteractive
-
-              # 安装用户态工具编译依赖
-              apt update
-              apt install -y \
-                build-essential \
-                autoconf \
-                libtool \
-                pkg-config \
-                libudev-dev \
-                libssl-dev \
-                flex \
-                bison \
-                file \
-                patchelf
-
-              # 编译 USB/IP 用户态工具
-              cd tools/usb/usbip
-              ./autogen.sh
-              ./configure CFLAGS=\"-Wno-error -Wno-error=stringop-truncation\" --prefix=/usr
-              make -j\$(nproc)
-
-              # 复制二进制和库
-              cp src/.libs/usbip /output/bin/
-              cp src/.libs/usbipd /output/bin/
-              cp libsrc/.libs/libusbip.so.0* /output/libs/
-
-              # 收集动态库依赖
-              cd /output
-              BINARIES=\"bin/usbip bin/usbipd libs/libusbip.so.0*\"
-              DEPS=\"\"
-
-              for file in \$BINARIES; do
-                if [ -f \"\$file\" ]; then
-                  echo \"Collecting dependencies for \$file...\"
-                  needed=\$(readelf -d \"\$file\" | grep NEEDED | awk '{print \$5}' | tr -d '[]' || true)
-                  for lib in \$needed; do
-                    if [[ \"\$DEPS\" != *\"\$lib\"* ]]; then
-                      DEPS=\"\$DEPS \$lib\"
-                    fi
-                  done
-                fi
-              done
-
-              # 复制库文件
-              for lib in \$(echo \$DEPS | tr ' ' '\\n' | sort -u); do
-                echo \"Searching for library: \$lib\"
-                libpath=\$(find /lib /usr/lib -name \"\$lib\" -type f 2>/dev/null | head -1 || true)
-                if [ -n \"\$libpath\" ]; then
-                  echo \"Found: \$libpath\"
-                  cp -P \"\$libpath\" libs/ 2>/dev/null || cp \"\$libpath\" libs/
-                  for reallib in \$(find \"\$(dirname \"\$libpath\")\" -name \"\${lib%.so*}*\" -type f 2>/dev/null); do
-                    cp -n \"\$reallib\" libs/ 2>/dev/null || true
-                  done
-                else
-                  echo \"Warning: library \$lib not found\"
-                fi
-              done
-
-              # 复制动态链接器
-              ld_linux=\"/lib/ld-linux-aarch64.so.1\"
-              if [ -f \"\$ld_linux\" ]; then
-                cp -P \"\$ld_linux\" libs/
-              fi
-
-              echo \"USB/IP user-space tools build and collection complete.\"
-            "
-
-      - name: 打包 USB/IP 产物
-        run: |
-          cd usbip-out
-          tar czf ../usbip-arm64-bundle.tar.gz .
+          export CLANG_PATH=$HOME/r547379/bin
+          export PATH=${CLANG_PATH}:${PATH}
+          
+          # 生成默认配置
+          make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" O=out raphael_defconfig
+          
+          # ---- 写入额外配置项 ----
+          cd out
+          # 启用 y 选项
+          for cfg in CONFIG_SYSVIPC CONFIG_SYSVIPC_SYSCTL CONFIG_SYSVIPC_COMPAT CONFIG_EPOLL CONFIG_EVENTFD CONFIG_SIGNALFD CONFIG_INOTIFY_USER CONFIG_SHMEM CONFIG_TMPFS CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR CONFIG_SECTION_MISMATCH_WARN_ONLY; do
+            ../scripts/config --enable ${cfg#CONFIG_}
+          done
+          # 启用模块选项（=m）
+          for cfg in CONFIG_USBIP_CORE CONFIG_USBIP_VHCI_HCD CONFIG_USBIP_HOST; do
+            ../scripts/config --module ${cfg#CONFIG_}
+          done
+          # 确保模块支持已开启
+          ../scripts/config --enable MODULES
+          # 关键：禁用附加 dtb 以避免 AnyKernel3 刷入失败
+          ../scripts/config --disable BUILD_ARM64_APPENDED_DTB_IMAGE
+          # 处理依赖关系
+          make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" olddefconfig
           cd ..
+          # ---------------------
+          
+          # 正式构建
+          make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" O=out -j$(nproc)
+          
+          ccache --show-stats
+          ccache --show-config
 
-      - name: 安装 abootimg
-        run: sudo apt install -y abootimg
-
-      - name: 使用 abootimg 重新打包 boot.img
-        id: repack_boot
+      - name: Prepare AnyKernel3
         run: |
-          # 下载参考 boot.img
-          curl -fLSs "${{ env.BOOT_IMG_URL }}" -o boot.img
-          mkdir boot_repack
-          cd boot_repack
-          # 解包
-          abootimg -x ../boot.img
-          # 替换内核
-          cp $GITHUB_WORKSPACE/kernel/out/arch/arm64/boot/Image.gz kernel
-          # 重新打包
-          abootimg --create $GITHUB_WORKSPACE/boot-raphael.img -f bootimg.cfg -k kernel -r initrd.img
+          git clone --depth=1 https://github.com/SOVIET-ANDROID/AnyKernel3.git $HOME/AnyKernel3
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb $HOME/AnyKernel3/
+          cp kernel/out/arch/arm64/boot/dtbo.img $HOME/AnyKernel3/
+          
+          BRANCH=$(echo "${GITHUB_REF#refs/heads/}" | sed 's|/|-|g')
+          COMMIT_HASH=$(echo "$GITHUB_SHA" | cut -c1-6)
+          ZIP_NAME="${BRANCH}-${COMMIT_HASH}.zip"
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+          
+          mv "$HOME/AnyKernel3" "$GITHUB_WORKSPACE/AnyKernel3"
+
+      - name: Package kernel zip
+        run: |
+          cd AnyKernel3
+          zip -r9 "../${ZIP_NAME}" *
           cd ..
+          echo "Packaged ${ZIP_NAME}"
 
-      - name: 生成 AnyKernel3 压缩包
-        run: |
-          git clone https://github.com/osm0sis/AnyKernel3 --depth=1 ak3
-          cp kernel/out/arch/arm64/boot/Image.gz ak3/
-          mkdir -p ak3/dtb ak3/dtbo
-          DTB_FILE=$(find kernel/out/arch/arm64/boot/dts -name "sm8150-xiaomi.dtb" | head -n1)
-          cp "$DTB_FILE" ak3/dtb/dtb
-          DTBO_FILE=$(find kernel/out/arch/arm64/boot/dts -name "raphael*.dtbo" | head -n1)
-          cp "$DTBO_FILE" ak3/dtbo/dtbo
-
-          cd ak3
-          # 使用 -s 静默模式，避免输出目录信息，并只取最后一行
-          KERNEL_VERSION=$(make -s -C ../kernel kernelversion 2>/dev/null | tail -1)
-          ZIP_NAME="Anykernel3-${{ matrix.device }}-${KERNEL_VERSION}.zip"
-
-          cat > anykernel.sh << EOF
-          properties() {
-            kernel.string=Kernel for ${{ matrix.device }}
-            device.name1=${{ matrix.device }}
-            do.devicecheck=1
-          }
-          kernel=Image.gz
-          ramdisk_compression=auto
-          patch_vbmeta_flag=auto
-          is_slot_device=auto
-          block=auto
-          . tools/ak3-core.sh
-          split_boot
-          flash_boot
-          EOF
-
-          zip -qr9 "$ZIP_NAME" * -x .git .github README.md *placeholder
-          mv "$ZIP_NAME" $GITHUB_WORKSPACE/
-          cd ..
-
-      - name: 上传 AnyKernel3 ZIP
-        uses: actions/upload-artifact@v5
+      - name: Upload Kernel Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: kernel-${{ matrix.device }}-ak3
-          path: Anykernel3-${{ matrix.device }}-*.zip
-
-      - name: 上传 boot.img
-        uses: actions/upload-artifact@v5
-        with:
-          name: kernel-${{ matrix.device }}-bootimg
-          path: boot-raphael.img
-
-      - name: 上传 USB/IP 捆绑包
-        uses: actions/upload-artifact@v5
-        with:
-          name: kernel-${{ matrix.device }}-usbip
-          path: usbip-arm64-bundle.tar.gz
-
-  release:
-    name: 发布
-    permissions: { contents: write }
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: 获取构建产物
-        uses: actions/download-artifact@v6
-        with:
-          path: artifacts
-          pattern: kernel-*
-          merge-multiple: true
-
-      - name: 获取当前时间
-        id: time
-        run: |
-          echo "time=$(TZ='Asia/Shanghai' date -u +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
-          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
-
-      - name: 下载 KernelSU Manager (可选)
-        continue-on-error: true
-        uses: dawidd6/action-download-artifact@v11
-        with:
-          repo: rsuntk/KernelSU
-          workflow_conclusion: success
-          name: manager
-          workflow: build-manager.yml
-          path: manager
-
-      - name: 发布
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: rel-${{ steps.time.outputs.timestamp }}
-          name: Kernel build ${{ steps.time.outputs.time }}
-          prerelease: ${{ startsWith(github.ref_name, 'dev/') }}
-          files: |
-            artifacts/*
-            manager/*
+          name: ${{ env.ZIP_NAME }}
+          path: ${{ github.workspace }}/${{ env.ZIP_NAME }}
