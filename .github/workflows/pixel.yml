@@ -24,7 +24,7 @@ jobs:
         env:
           PACKAGES: >-
             ccache binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
-            device-tree-compiler dos2unix gcc-aarch64-linux-gnu
+            device-tree-compiler dos2unix gcc-aarch64-linux-gnu jq
         run: |
           sudo apt update > /dev/null
           sudo apt install -y ${{ env.PACKAGES }} > /dev/null
@@ -89,6 +89,8 @@ jobs:
           echo "# CONFIG_BPF_JIT_ALWAYS_ON is not set" >> $DEFCONFIG
           # 确保 BPF 系统调用开启
           echo "CONFIG_BPF_SYSCALL=y" >> $DEFCONFIG
+          # 允许段不匹配警告，避免 modpost 报错中止
+          echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DEFCONFIG
 
       - name: 编译内核与设备树
         working-directory: kernel
