@@ -86,8 +86,14 @@ jobs:
       - name: Prepare AnyKernel3
         run: |
           git clone --depth=1 https://github.com/SOVIET-ANDROID/AnyKernel3.git $HOME/AnyKernel3
-          cp kernel/out/arch/arm64/boot/Image.gz-dtb $HOME/AnyKernel3/
+          # 复制 dtbo.img（总是存在）
           cp kernel/out/arch/arm64/boot/dtbo.img $HOME/AnyKernel3/
+          # 复制内核镜像：优先使用 Image.gz-dtb，如果不存在则使用 Image.gz 并重命名
+          if [ -f kernel/out/arch/arm64/boot/Image.gz-dtb ]; then
+            cp kernel/out/arch/arm64/boot/Image.gz-dtb $HOME/AnyKernel3/
+          else
+            cp kernel/out/arch/arm64/boot/Image.gz $HOME/AnyKernel3/Image.gz-dtb
+          fi
           
           BRANCH=$(echo "${GITHUB_REF#refs/heads/}" | sed 's|/|-|g')
           COMMIT_HASH=$(echo "$GITHUB_SHA" | cut -c1-6)
