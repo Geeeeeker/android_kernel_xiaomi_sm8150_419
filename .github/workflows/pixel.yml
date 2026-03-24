@@ -55,38 +55,16 @@ jobs:
           path: /home/runner/r547379
           key: clang-r547379
 
-      - name: Configure LXC/Docker support
-        working-directory: kernel
-        run: |
-          # 准备 LXC/Docker 支持（补丁、Kconfig 等）
-          rm -rf utils
-          git clone https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
-          sed -i '/select CFS_BANDWIDTH/d' utils/Kconfig
-          sed -i '/select DOCKER_STATISTICS/d' utils/Kconfig
-          sed -i '/select BLK_DEV_THROTTLING/d' utils/Kconfig
-          sed -i '/select CFQ_GROUP_IOSCHED/d' utils/Kconfig
-          sed -i '/select BRIDGE_VLAN_FILTERING/d' utils/Kconfig
-          echo 'source "utils/Kconfig"' >> "Kconfig"
-          chmod +x utils/runcpatch.sh
-          if [ -f cgroup/cgroup.c ]; then
-              sh utils/runcpatch.sh cgroup/cgroup.c
-          fi
-          if [ -f cgroup.c ]; then
-              sh utils/runcpatch.sh cgroup.c
-          fi
-          if [ -f net/netfilter/xt_qtaguid.c ]; then
-              patch -p0 < utils/xt_qtaguid.patch
-          fi
-          # 修复 QVR 设备树语法错误
-          sed -i '/sdm845-v2-qvr-evt.dtb/d' arch/arm64/boot/dts/qcom/Makefile || true
-          sed -i '/qvr/d' arch/arm64/boot/dts/qcom/Makefile || true
-          sed -i '/interposer/d' arch/arm64/boot/dts/qcom/Makefile || true
-
       - name: Fix cfq-iosched.c macro error
         working-directory: kernel
         run: |
           # 移除宏中多余的 break; 语句
           sed -i '/^#define cfq_log_cfqq/,/^}/ { /break;/d; }' block/cfq-iosched.c || true
+
+      # 新增清理步骤：确保源码树干净
+      - name: Clean kernel source
+        working-directory: kernel
+        run: make mrproper
 
       - name: Generate base config
         working-directory: kernel
@@ -190,7 +168,7 @@ jobs:
           CONFIG_IP_VS_PROTO_UDP=y
           CONFIG_IP_VS_RR=y
           CONFIG_SECURITY_APPARMOR=y
-          EOF
+          USER_EOF
 
           # 设置 LOCALVERSION
           sed -i '/CONFIG_LOCALVERSION/d' .config
