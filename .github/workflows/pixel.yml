@@ -60,8 +60,8 @@ jobs:
           
           # ---- 写入额外配置项 ----
           cd out
-          # 启用 y 选项（包括 SECTION_MISMATCH_WARN_ONLY 和 MODVERSIONS）
-          for cfg in CONFIG_SYSVIPC CONFIG_SYSVIPC_SYSCTL CONFIG_SYSVIPC_COMPAT CONFIG_EPOLL CONFIG_EVENTFD CONFIG_SIGNALFD CONFIG_INOTIFY_USER CONFIG_SHMEM CONFIG_TMPFS CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR CONFIG_SECTION_MISMATCH_WARN_ONLY CONFIG_MODVERSIONS; do
+          # 启用 y 选项（不含 MODVERSIONS）
+          for cfg in CONFIG_SYSVIPC CONFIG_SYSVIPC_SYSCTL CONFIG_SYSVIPC_COMPAT CONFIG_EPOLL CONFIG_EVENTFD CONFIG_SIGNALFD CONFIG_INOTIFY_USER CONFIG_SHMEM CONFIG_TMPFS CONFIG_TMPFS_POSIX_ACL CONFIG_TMPFS_XATTR CONFIG_SECTION_MISMATCH_WARN_ONLY; do
             ../scripts/config --enable ${cfg#CONFIG_}
           done
           # 启用模块选项（=m）
@@ -70,6 +70,8 @@ jobs:
           done
           # 确保模块支持已开启
           ../scripts/config --enable MODULES
+          # 显式禁用 MODVERSIONS
+          ../scripts/config --disable MODVERSIONS
           # 处理依赖关系
           make LLVM=1 LLVM_IAS=1 ARCH=arm64 CC="ccache clang" olddefconfig
           cd ..
