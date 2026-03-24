@@ -105,7 +105,7 @@ jobs:
           echo "CONFIG_TMPFS=y" >> $DEFCONFIG
           echo "CONFIG_TMPFS_POSIX_ACL=y" >> $DEFCONFIG
           echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG
-          # USB/IP 配置（仅用于生成 .config 一致性，实际编译在 Docker 内完成）
+          # USB/IP 配置
           echo "CONFIG_USBIP_CORE=m" >> $DEFCONFIG
           echo "CONFIG_USBIP_VHCI_HCD=m" >> $DEFCONFIG
           echo "CONFIG_USBIP_HOST=m" >> $DEFCONFIG
@@ -167,9 +167,25 @@ jobs:
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             raphael_defconfig Image.gz dtbs
 
-      - name: 在 Docker 容器内编译 USB/IP (内核模块 + 用户态工具)
+      - name: 编译 USB/IP 内核模块 (主机)
+        working-directory: kernel
         run: |
-          mkdir -p usbip-out/{bin,libs,modules}
+          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+          make -j$(nproc --all) \
+            ARCH=arm64 \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            O=out \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            M=drivers/usb/usbip \
+            modules
+          # 将生成的 .ko 文件复制到输出目录
+          mkdir -p $GITHUB_WORKSPACE/usbip-out/modules
+          cp out/drivers/usb/usbip/*.ko $GITHUB_WORKSPACE/usbip-out/modules/
+
+      - name: 编译 USB/IP 用户态工具 (Docker 容器)
+        run: |
+          mkdir -p usbip-out/{bin,libs}
           docker run --rm --platform linux/arm64 \
             -v ${{ github.workspace }}/kernel:/kernel-src \
             -v ${{ github.workspace }}/usbip-out:/output \
@@ -179,7 +195,7 @@ jobs:
               set -e
               export DEBIAN_FRONTEND=noninteractive
 
-              # 安装编译依赖
+              # 安装用户态工具编译依赖
               apt update
               apt install -y \
                 build-essential \
@@ -190,24 +206,8 @@ jobs:
                 libssl-dev \
                 flex \
                 bison \
-                bc \
-                kmod \
                 file \
                 patchelf
-
-              # 配置内核 (基于现有配置添加 USB/IP 选项)
-              make ARCH=arm64 defconfig
-              echo 'CONFIG_USBIP_CORE=m' >> .config
-              echo 'CONFIG_USBIP_VHCI_HCD=m' >> .config
-              echo 'CONFIG_USBIP_HOST=m' >> .config
-              make ARCH=arm64 olddefconfig
-
-              # 准备模块构建环境
-              make ARCH=arm64 modules_prepare
-
-              # 编译 USB/IP 内核模块
-              make ARCH=arm64 M=drivers/usb/usbip modules
-              cp drivers/usb/usbip/*.ko /output/modules/
 
               # 编译 USB/IP 用户态工具
               cd tools/usb/usbip
@@ -258,7 +258,7 @@ jobs:
                 cp -P \"\$ld_linux\" libs/
               fi
 
-              echo \"USB/IP build and collection complete.\"
+              echo \"USB/IP user-space tools build and collection complete.\"
             "
 
       - name: 打包 USB/IP 产物
