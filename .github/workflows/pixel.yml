@@ -110,9 +110,10 @@ jobs:
           echo "CONFIG_USBIP_HOST=m" >> $DEFCONFIG
           # 允许 section mismatch 警告而不中止编译
           echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DEFCONFIG
-          # 添加 Backlight 支持（解决 undefined symbol 错误）
+          # Backlight 支持（参照原配置）
+          echo "CONFIG_BACKLIGHT_LCD_SUPPORT=y" >> $DEFCONFIG
+          echo "# CONFIG_LCD_CLASS_DEVICE is not set" >> $DEFCONFIG
           echo "CONFIG_BACKLIGHT_CLASS_DEVICE=y" >> $DEFCONFIG
-          echo "CONFIG_BACKLIGHT_QCOM=y" >> $DEFCONFIG
 
       - name: 编译内核与设备树
         working-directory: kernel
