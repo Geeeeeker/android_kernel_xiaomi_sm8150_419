@@ -28,7 +28,7 @@ jobs:
             ccache binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi \
             device-tree-compiler dos2unix gcc-aarch64-linux-gnu \
             autoconf libtool pkg-config flex bison patchelf \
-            kmod bc libelf-dev
+            kmod bc libelf-dev lld   # 添加 lld
       - name: 设置 QEMU 用户态支持
         run: |
           sudo apt-get update
