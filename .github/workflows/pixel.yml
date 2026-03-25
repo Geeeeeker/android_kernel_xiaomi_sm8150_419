@@ -1,4 +1,4 @@
-name: 编译内核与设备树
+name: 编译内核与设备树 (含 USB/IP)
 
 on:
   push:
@@ -28,12 +28,9 @@ jobs:
             ccache binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi \
             device-tree-compiler dos2unix gcc-aarch64-linux-gnu \
             autoconf libtool pkg-config flex bison patchelf \
-            kmod bc libelf-dev lld   # 添加 lld
-      - name: 设置 QEMU 用户态支持
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-user-static binfmt-support
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+            kmod bc libelf-dev
+
+      # 替换原来的 actions/checkout 为手动克隆
       - name: Clone kernel source
         run: git clone --depth 1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel kernel
 
@@ -48,6 +45,7 @@ jobs:
             mv "${FILE}.clean" "$FILE"
             echo >> "$FILE"
           done
+
       - name: 缓存 Clang
         id: cache-clang
         uses: actions/cache@v4
@@ -62,6 +60,7 @@ jobs:
           curl -L -o clang.tar.gz "https://github.com/Geeeeeker/boot/releases/download/clang-prebuilts-20260319-031015/clang-r547379.tar.gz"
           tar xzf clang.tar.gz -C clang --strip-components=1
           rm clang.tar.gz
+
       - name: 缓存 ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
@@ -101,11 +100,13 @@ jobs:
           echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG
           # 允许 section mismatch 警告而不中止编译
           echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DEFCONFIG
-          # Backlight 支持（参照原配置）
-          echo "CONFIG_BACKLIGHT_LCD_SUPPORT=y" >> $DEFCONFIG
-          echo "# CONFIG_LCD_CLASS_DEVICE is not set" >> $DEFCONFIG
+          # 添加 Backlight 支持（解决 undefined symbol 错误）
           echo "CONFIG_BACKLIGHT_CLASS_DEVICE=y" >> $DEFCONFIG
-      - name: 编译内核与设备树（生成 Image.gz-dtb 和 dtbo.img）
+          echo "CONFIG_BACKLIGHT_QCOM=y" >> $DEFCONFIG
+          # 启用附加 dtb 的内核镜像
+          echo "CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE=y" >> $DEFCONFIG
+
+      - name: 编译内核与设备树
         working-directory: kernel
         run: |
           export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
@@ -121,31 +122,53 @@ jobs:
             KCFLAGS="-Wno-error=strict-prototypes" \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            raphael_defconfig Image.gz-dtb dtbo.img
+            raphael_defconfig Image.gz-dtb
+
       - name: 安装 abootimg
         run: sudo apt install -y abootimg
 
       - name: 使用 abootimg 重新打包 boot.img
         id: repack_boot
         run: |
+          # 下载参考 boot.img
           curl -fLSs "${{ env.BOOT_IMG_URL }}" -o boot.img
           mkdir boot_repack
           cd boot_repack
+          # 解包
           abootimg -x ../boot.img
-          cp $GITHUB_WORKSPACE/kernel/out/arch/arm64/boot/Image.gz kernel
+          # 替换内核（使用 Image.gz-dtb）
+          cp $GITHUB_WORKSPACE/kernel/out/arch/arm64/boot/Image.gz-dtb kernel
+          # 重新打包
           abootimg --create $GITHUB_WORKSPACE/boot-raphael.img -f bootimg.cfg -k kernel -r initrd.img
           cd ..
+
       - name: 生成 AnyKernel3 压缩包
         run: |
           git clone https://github.com/osm0sis/AnyKernel3 --depth=1 ak3
           cp kernel/out/arch/arm64/boot/Image.gz-dtb ak3/
-          cp kernel/out/arch/arm64/boot/dtbo.img ak3/
           cd ak3
+          # 从编译输出目录读取内核版本（最可靠）
           KERNEL_VERSION=$(cat ../kernel/out/include/config/kernel.release | tr -d '\n')
-          ZIP_NAME="Anykernel3-16.zip"
+          ZIP_NAME="Anykernel3-${{ matrix.device }}-${KERNEL_VERSION}.zip"
+          cat > anykernel.sh << EOF
+          properties() {
+            kernel.string=Kernel for ${{ matrix.device }}
+            device.name1=${{ matrix.device }}
+            do.devicecheck=1
+          }
+          kernel=Image.gz-dtb
+          ramdisk_compression=auto
+          patch_vbmeta_flag=auto
+          is_slot_device=auto
+          block=auto
+          . tools/ak3-core.sh
+          split_boot
+          flash_boot
+          EOF
           zip -qr9 "$ZIP_NAME" * -x .git .github README.md *placeholder
           mv "$ZIP_NAME" $GITHUB_WORKSPACE/
           cd ..
+
       - name: 上传 AnyKernel3 ZIP
         uses: actions/upload-artifact@v5
         with:
@@ -176,6 +199,7 @@ jobs:
         run: |
           echo "time=$(TZ='Asia/Shanghai' date -u +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
           echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
+
       - name: 下载 KernelSU Manager (可选)
         continue-on-error: true
         uses: dawidd6/action-download-artifact@v11
