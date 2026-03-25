@@ -36,9 +36,9 @@ jobs:
           sudo apt-get install -y qemu-user-static binfmt-support
           docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
-      steps:
-        - name: Clone kernel source
-          run: git clone --depth 1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel kernel
+      # 替换原来的 actions/checkout 为手动克隆
+      - name: Clone kernel source
+        run: git clone --depth 1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel kernel
 
       - name: 深度清理设备树源文件
         working-directory: kernel
@@ -91,7 +91,6 @@ jobs:
           echo "CONFIG_BPF_JIT=y" >> $DEFCONFIG
           echo "# CONFIG_BPF_JIT_ALWAYS_ON is not set" >> $DEFCONFIG
           echo "CONFIG_BPF_SYSCALL=y" >> $DEFCONFIG
-
           # 新增配置
           echo "CONFIG_SYSVIPC=y" >> $DEFCONFIG
           echo "CONFIG_SYSVIPC_SYSCTL=y" >> $DEFCONFIG
@@ -158,7 +157,6 @@ jobs:
             bash -c "
               set -e
               export DEBIAN_FRONTEND=noninteractive
-
               apt update
               apt install -y \
                 build-essential \
@@ -171,24 +169,20 @@ jobs:
                 bison \
                 file \
                 patchelf
-
               cd tools/usb/usbip
               ./autogen.sh
               # 传递 CFLAGS，禁用所有警告为错误
               ./configure CFLAGS=\"-Wno-error\" --prefix=/usr
               # 再次确保 make 时也使用 CFLAGS
               make CFLAGS=\"-Wno-error\" -j\$(nproc)
-
               # 复制二进制和库
               cp src/.libs/usbip /output/bin/
               cp src/.libs/usbipd /output/bin/
               cp libsrc/.libs/libusbip.so.0* /output/libs/
-
               # 收集动态库依赖
               cd /output
               BINARIES=\"bin/usbip bin/usbipd libs/libusbip.so.0*\"
               DEPS=\"\"
-
               for file in \$BINARIES; do
                 if [ -f \"\$file\" ]; then
                   echo \"Collecting dependencies for \$file...\"
@@ -200,7 +194,6 @@ jobs:
                   done
                 fi
               done
-
               # 复制库文件
               for lib in \$(echo \$DEPS | tr ' ' '\\n' | sort -u); do
                 echo \"Searching for library: \$lib\"
@@ -215,13 +208,11 @@ jobs:
                   echo \"Warning: library \$lib not found\"
                 fi
               done
-
               # 复制动态链接器
               ld_linux=\"/lib/ld-linux-aarch64.so.1\"
               if [ -f \"\$ld_linux\" ]; then
                 cp -P \"\$ld_linux\" libs/
               fi
-
               echo \"USB/IP user-space tools build and collection complete.\"
             "
 
@@ -258,12 +249,10 @@ jobs:
           cp "$DTB_FILE" ak3/dtb/dtb
           DTBO_FILE=$(find kernel/out/arch/arm64/boot/dts -name "raphael*.dtbo" | head -n1)
           cp "$DTBO_FILE" ak3/dtbo/dtbo
-
           cd ak3
           # 从编译输出目录读取内核版本（最可靠）
           KERNEL_VERSION=$(cat ../kernel/out/include/config/kernel.release | tr -d '\n')
           ZIP_NAME="Anykernel3-${{ matrix.device }}-${KERNEL_VERSION}.zip"
-
           cat > anykernel.sh << EOF
           properties() {
             kernel.string=Kernel for ${{ matrix.device }}
@@ -279,7 +268,6 @@ jobs:
           split_boot
           flash_boot
           EOF
-
           zip -qr9 "$ZIP_NAME" * -x .git .github README.md *placeholder
           mv "$ZIP_NAME" $GITHUB_WORKSPACE/
           cd ..
