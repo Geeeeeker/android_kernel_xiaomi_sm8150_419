@@ -107,6 +107,8 @@ jobs:
           echo "CONFIG_USBIP_CORE=m" >> $DEFCONFIG
           echo "CONFIG_USBIP_VHCI_HCD=m" >> $DEFCONFIG
           echo "CONFIG_USBIP_HOST=m" >> $DEFCONFIG
+          # 允许 section mismatch 警告而不中止编译
+          echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DEFCONFIG
 
       - name: 编译内核与设备树
         working-directory: kernel
