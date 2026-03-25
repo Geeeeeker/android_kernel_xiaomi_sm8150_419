@@ -1,4 +1,4 @@
-name: 编译内核与设备树 (含 USB/IP)
+name: 编译内核与设备树
 
 on:
   push:
@@ -36,7 +36,6 @@ jobs:
           sudo apt-get install -y qemu-user-static binfmt-support
           docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
-      # 替换原来的 actions/checkout 为手动克隆
       - name: Clone kernel source
         run: git clone --depth 1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel kernel
 
@@ -104,10 +103,6 @@ jobs:
           echo "CONFIG_TMPFS=y" >> $DEFCONFIG
           echo "CONFIG_TMPFS_POSIX_ACL=y" >> $DEFCONFIG
           echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG
-          # USB/IP 配置
-          echo "CONFIG_USBIP_CORE=m" >> $DEFCONFIG
-          echo "CONFIG_USBIP_VHCI_HCD=m" >> $DEFCONFIG
-          echo "CONFIG_USBIP_HOST=m" >> $DEFCONFIG
           # 允许 section mismatch 警告而不中止编译
           echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DEFCONFIG
           # Backlight 支持（参照原配置）
@@ -115,7 +110,7 @@ jobs:
           echo "# CONFIG_LCD_CLASS_DEVICE is not set" >> $DEFCONFIG
           echo "CONFIG_BACKLIGHT_CLASS_DEVICE=y" >> $DEFCONFIG
 
-      - name: 编译内核与设备树
+      - name: 编译内核与设备树（生成 Image.gz-dtb 和 dtbo.img）
         working-directory: kernel
         run: |
           export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
@@ -131,99 +126,7 @@ jobs:
             KCFLAGS="-Wno-error=strict-prototypes" \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            raphael_defconfig Image.gz dtbs
-
-      - name: 编译 USB/IP 内核模块 (主机)
-        working-directory: kernel
-        run: |
-          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
-          make -j$(nproc --all) \
-            ARCH=arm64 \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            O=out \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            M=drivers/usb/usbip \
-            modules
-          # 将生成的 .ko 文件复制到输出目录
-          mkdir -p $GITHUB_WORKSPACE/usbip-out/modules
-          cp out/drivers/usb/usbip/*.ko $GITHUB_WORKSPACE/usbip-out/modules/
-
-      - name: 编译 USB/IP 用户态工具 (Docker 容器)
-        run: |
-          mkdir -p usbip-out/{bin,libs}
-          docker run --rm --platform linux/arm64 \
-            -v ${{ github.workspace }}/kernel:/kernel-src \
-            -v ${{ github.workspace }}/usbip-out:/output \
-            -w /kernel-src \
-            arm64v8/ubuntu:22.04 \
-            bash -c "
-              set -e
-              export DEBIAN_FRONTEND=noninteractive
-              apt update
-              apt install -y \
-                build-essential \
-                autoconf \
-                libtool \
-                pkg-config \
-                libudev-dev \
-                libssl-dev \
-                flex \
-                bison \
-                file \
-                patchelf
-              cd tools/usb/usbip
-              ./autogen.sh
-              # 传递 CFLAGS，禁用所有警告为错误
-              ./configure CFLAGS=\"-Wno-error\" --prefix=/usr
-              # 再次确保 make 时也使用 CFLAGS
-              make CFLAGS=\"-Wno-error\" -j\$(nproc)
-              # 复制二进制和库
-              cp src/.libs/usbip /output/bin/
-              cp src/.libs/usbipd /output/bin/
-              cp libsrc/.libs/libusbip.so.0* /output/libs/
-              # 收集动态库依赖
-              cd /output
-              BINARIES=\"bin/usbip bin/usbipd libs/libusbip.so.0*\"
-              DEPS=\"\"
-              for file in \$BINARIES; do
-                if [ -f \"\$file\" ]; then
-                  echo \"Collecting dependencies for \$file...\"
-                  needed=\$(readelf -d \"\$file\" | grep NEEDED | awk '{print \$5}' | tr -d '[]' || true)
-                  for lib in \$needed; do
-                    if [[ \"\$DEPS\" != *\"\$lib\"* ]]; then
-                      DEPS=\"\$DEPS \$lib\"
-                    fi
-                  done
-                fi
-              done
-              # 复制库文件
-              for lib in \$(echo \$DEPS | tr ' ' '\\n' | sort -u); do
-                echo \"Searching for library: \$lib\"
-                libpath=\$(find /lib /usr/lib -name \"\$lib\" -type f 2>/dev/null | head -1 || true)
-                if [ -n \"\$libpath\" ]; then
-                  echo \"Found: \$libpath\"
-                  cp -P \"\$libpath\" libs/ 2>/dev/null || cp \"\$libpath\" libs/
-                  for reallib in \$(find \"\$(dirname \"\$libpath\")\" -name \"\${lib%.so*}*\" -type f 2>/dev/null); do
-                    cp -n \"\$reallib\" libs/ 2>/dev/null || true
-                  done
-                else
-                  echo \"Warning: library \$lib not found\"
-                fi
-              done
-              # 复制动态链接器
-              ld_linux=\"/lib/ld-linux-aarch64.so.1\"
-              if [ -f \"\$ld_linux\" ]; then
-                cp -P \"\$ld_linux\" libs/
-              fi
-              echo \"USB/IP user-space tools build and collection complete.\"
-            "
-
-      - name: 打包 USB/IP 产物
-        run: |
-          cd usbip-out
-          tar czf ../usbip-arm64-bundle.tar.gz .
-          cd ..
+            raphael_defconfig Image.gz-dtb dtbo.img
 
       - name: 安装 abootimg
         run: sudo apt install -y abootimg
@@ -231,65 +134,22 @@ jobs:
       - name: 使用 abootimg 重新打包 boot.img
         id: repack_boot
         run: |
-          # 下载参考 boot.img
           curl -fLSs "${{ env.BOOT_IMG_URL }}" -o boot.img
           mkdir boot_repack
           cd boot_repack
-          # 解包
           abootimg -x ../boot.img
-          # 替换内核
           cp $GITHUB_WORKSPACE/kernel/out/arch/arm64/boot/Image.gz kernel
-          # 重新打包
           abootimg --create $GITHUB_WORKSPACE/boot-raphael.img -f bootimg.cfg -k kernel -r initrd.img
           cd ..
 
       - name: 生成 AnyKernel3 压缩包
         run: |
           git clone https://github.com/osm0sis/AnyKernel3 --depth=1 ak3
-          cp kernel/out/arch/arm64/boot/Image.gz ak3/
-          mkdir -p ak3/dtb ak3/dtbo
-
-          # 调试：列出 dts 目录内容
-          echo "Listing kernel/out/arch/arm64/boot/dts:"
-          find kernel/out/arch/arm64/boot/dts -type f \( -name "*.dtb" -o -name "*.dtbo" \) | head -20
-
-          # 查找 dtb 文件（通用模式）
-          DTB_FILE=$(find kernel/out/arch/arm64/boot/dts -name "*.dtb" | head -n1)
-          if [ -z "$DTB_FILE" ]; then
-            echo "Error: No dtb file found"
-            exit 1
-          fi
-          echo "Found DTB: $DTB_FILE"
-          cp "$DTB_FILE" ak3/dtb/dtb
-
-          # 查找 dtbo 文件（通用模式）
-          DTBO_FILE=$(find kernel/out/arch/arm64/boot/dts -name "*.dtbo" | head -n1)
-          if [ -z "$DTBO_FILE" ]; then
-            echo "Error: No dtbo file found"
-            exit 1
-          fi
-          echo "Found DTBO: $DTBO_FILE"
-          cp "$DTBO_FILE" ak3/dtbo/dtbo
-
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb ak3/
+          cp kernel/out/arch/arm64/boot/dtbo.img ak3/
           cd ak3
-          # 从编译输出目录读取内核版本
           KERNEL_VERSION=$(cat ../kernel/out/include/config/kernel.release | tr -d '\n')
           ZIP_NAME="Anykernel3-${{ matrix.device }}-${KERNEL_VERSION}.zip"
-          cat > anykernel.sh << EOF
-          properties() {
-            kernel.string=Kernel for ${{ matrix.device }}
-            device.name1=${{ matrix.device }}
-            do.devicecheck=1
-          }
-          kernel=Image.gz
-          ramdisk_compression=auto
-          patch_vbmeta_flag=auto
-          is_slot_device=auto
-          block=auto
-          . tools/ak3-core.sh
-          split_boot
-          flash_boot
-          EOF
           zip -qr9 "$ZIP_NAME" * -x .git .github README.md *placeholder
           mv "$ZIP_NAME" $GITHUB_WORKSPACE/
           cd ..
@@ -305,12 +165,6 @@ jobs:
         with:
           name: kernel-${{ matrix.device }}-bootimg
           path: boot-raphael.img
-
-      - name: 上传 USB/IP 捆绑包
-        uses: actions/upload-artifact@v5
-        with:
-          name: kernel-${{ matrix.device }}-usbip
-          path: usbip-arm64-bundle.tar.gz
 
   release:
     name: 发布
