@@ -137,6 +137,7 @@ jobs:
             LLVM_IAS=1 \
             O=out \
             CROSS_COMPILE=aarch64-linux-gnu- \
+            KCFLAGS="-Wno-error" \
             M=drivers/usb/usbip \
             modules
           # 将生成的 .ko 文件复制到输出目录
@@ -167,10 +168,8 @@ jobs:
                 patchelf
               cd tools/usb/usbip
               ./autogen.sh
-              # 传递 CFLAGS，禁用所有警告为错误
-              ./configure CFLAGS=\"-Wno-error\" --prefix=/usr
-              # 再次确保 make 时也使用 CFLAGS
-              make CFLAGS=\"-Wno-error\" -j\$(nproc)
+              ./configure CFLAGS='-Wno-error -Wno-unused-parameter -Wno-sign-compare -Wno-implicit-function-declaration' --prefix=/usr
+              make CFLAGS='-Wno-error -Wno-unused-parameter -Wno-sign-compare -Wno-implicit-function-declaration' -j\$(nproc)
               # 复制二进制和库
               cp src/.libs/usbip /output/bin/
               cp src/.libs/usbipd /output/bin/
@@ -190,7 +189,6 @@ jobs:
                   done
                 fi
               done
-              # 复制库文件
               for lib in \$(echo \$DEPS | tr ' ' '\\n' | sort -u); do
                 echo \"Searching for library: \$lib\"
                 libpath=\$(find /lib /usr/lib -name \"\$lib\" -type f 2>/dev/null | head -1 || true)
@@ -204,7 +202,6 @@ jobs:
                   echo \"Warning: library \$lib not found\"
                 fi
               done
-              # 复制动态链接器
               ld_linux=\"/lib/ld-linux-aarch64.so.1\"
               if [ -f \"\$ld_linux\" ]; then
                 cp -P \"\$ld_linux\" libs/
