@@ -148,9 +148,8 @@ jobs:
           cp kernel/out/arch/arm64/boot/Image.gz-dtb ak3/
           cp kernel/out/arch/arm64/boot/dtbo.img ak3/
           cd ak3
-          # 读取内核版本，清理非法字符（将斜杠、换行等替换为横线）
-          KERNEL_VERSION=$(cat ../kernel/out/include/config/kernel.release | tr -d '\n' | sed 's/[\/]/_/g')
-          ZIP_NAME="Anykernel3-${{ matrix.device }}-${KERNEL_VERSION}.zip"
+          # 使用设备名和安卓版本号作为压缩包名称（避免特殊字符）
+          ZIP_NAME="geeeeeker-anykernel3-${{ matrix.device }}-${{ env.AOSP_TOOLCHAIN_BRANCH }}.zip"
           zip -qr9 "$ZIP_NAME" * -x .git .github README.md *placeholder
           mv "$ZIP_NAME" $GITHUB_WORKSPACE/
           cd ..
@@ -159,7 +158,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: kernel-${{ matrix.device }}-ak3
-          path: Anykernel3-${{ matrix.device }}-*.zip
+          path: geeeeeker-anykernel3-${{ matrix.device }}-*.zip
 
       - name: 上传 boot.img
         uses: actions/upload-artifact@v5
