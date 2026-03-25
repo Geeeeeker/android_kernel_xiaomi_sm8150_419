@@ -1,4 +1,3 @@
-
 name: 编译内核与设备树 (含 USB/IP)
 
 on:
@@ -238,7 +237,7 @@ jobs:
         run: |
           git clone https://github.com/osm0sis/AnyKernel3 --depth=1 ak3
           cp kernel/out/arch/arm64/boot/Image.gz ak3/
-         mkdir -p ak3/dtb ak3/dtbo
+          mkdir -p ak3/dtb ak3/dtbo
           DTB_FILE=$(find kernel/out/arch/arm64/boot/dts -name "sm8150-xiaomi.dtb" | head -n1)
           cp "$DTB_FILE" ak3/dtb/dtb
           DTBO_FILE=$(find kernel/out/arch/arm64/boot/dts -name "raphael*.dtbo" | head -n1)
@@ -276,7 +275,7 @@ jobs:
       - name: 上传 boot.img
         uses: actions/upload-artifact@v5
         with:
-        name: kernel-${{ matrix.device }}-bootimg
+          name: kernel-${{ matrix.device }}-bootimg
           path: boot-raphael.img
 
       - name: 上传 USB/IP 捆绑包
