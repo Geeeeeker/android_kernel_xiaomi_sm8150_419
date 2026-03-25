@@ -30,12 +30,6 @@ jobs:
             autoconf libtool pkg-config flex bison patchelf \
             kmod bc libelf-dev
 
-      - name: 设置 QEMU 用户态支持
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-user-static binfmt-support
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
       - name: Clone kernel source
         run: git clone --depth 1 -b 16.0 https://github.com/Geeeeeker/kernel_xiaomi_raphael-pixel kernel
 
@@ -148,8 +142,7 @@ jobs:
           cp kernel/out/arch/arm64/boot/Image.gz-dtb ak3/
           cp kernel/out/arch/arm64/boot/dtbo.img ak3/
           cd ak3
-          # 使用设备名和安卓版本号作为压缩包名称（避免特殊字符）
-          ZIP_NAME="geeeeeker-anykernel3-${{ matrix.device }}-${{ env.AOSP_TOOLCHAIN_BRANCH }}.zip"
+          ZIP_NAME="geeeeeker-anykernel3-${{ matrix.device }}-android16.zip"
           zip -qr9 "$ZIP_NAME" * -x .git .github README.md *placeholder
           mv "$ZIP_NAME" $GITHUB_WORKSPACE/
           cd ..
@@ -158,7 +151,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: kernel-${{ matrix.device }}-ak3
-          path: geeeeeker-anykernel3-${{ matrix.device }}-*.zip
+          path: geeeeeker-anykernel3-${{ matrix.device }}-android16.zip
 
       - name: 上传 boot.img
         uses: actions/upload-artifact@v5
