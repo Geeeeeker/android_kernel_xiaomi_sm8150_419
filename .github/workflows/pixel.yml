@@ -148,7 +148,8 @@ jobs:
           cp kernel/out/arch/arm64/boot/Image.gz-dtb ak3/
           cp kernel/out/arch/arm64/boot/dtbo.img ak3/
           cd ak3
-          KERNEL_VERSION=$(cat ../kernel/out/include/config/kernel.release | tr -d '\n')
+          # 读取内核版本，清理非法字符（将斜杠、换行等替换为横线）
+          KERNEL_VERSION=$(cat ../kernel/out/include/config/kernel.release | tr -d '\n' | sed 's/[\/]/_/g')
           ZIP_NAME="Anykernel3-${{ matrix.device }}-${KERNEL_VERSION}.zip"
           zip -qr9 "$ZIP_NAME" * -x .git .github README.md *placeholder
           mv "$ZIP_NAME" $GITHUB_WORKSPACE/
