@@ -248,12 +248,31 @@ jobs:
           git clone https://github.com/osm0sis/AnyKernel3 --depth=1 ak3
           cp kernel/out/arch/arm64/boot/Image.gz ak3/
           mkdir -p ak3/dtb ak3/dtbo
-          DTB_FILE=$(find kernel/out/arch/arm64/boot/dts -name "sm8150-xiaomi.dtb" | head -n1)
+
+          # 调试：列出 dts 目录内容
+          echo "Listing kernel/out/arch/arm64/boot/dts:"
+          find kernel/out/arch/arm64/boot/dts -type f \( -name "*.dtb" -o -name "*.dtbo" \) | head -20
+
+          # 查找 dtb 文件（通用模式）
+          DTB_FILE=$(find kernel/out/arch/arm64/boot/dts -name "*.dtb" | head -n1)
+          if [ -z "$DTB_FILE" ]; then
+            echo "Error: No dtb file found"
+            exit 1
+          fi
+          echo "Found DTB: $DTB_FILE"
           cp "$DTB_FILE" ak3/dtb/dtb
-          DTBO_FILE=$(find kernel/out/arch/arm64/boot/dts -name "raphael*.dtbo" | head -n1)
+
+          # 查找 dtbo 文件（通用模式）
+          DTBO_FILE=$(find kernel/out/arch/arm64/boot/dts -name "*.dtbo" | head -n1)
+          if [ -z "$DTBO_FILE" ]; then
+            echo "Error: No dtbo file found"
+            exit 1
+          fi
+          echo "Found DTBO: $DTBO_FILE"
           cp "$DTBO_FILE" ak3/dtbo/dtbo
+
           cd ak3
-          # 从编译输出目录读取内核版本（最可靠）
+          # 从编译输出目录读取内核版本
           KERNEL_VERSION=$(cat ../kernel/out/include/config/kernel.release | tr -d '\n')
           ZIP_NAME="Anykernel3-${{ matrix.device }}-${KERNEL_VERSION}.zip"
           cat > anykernel.sh << EOF
