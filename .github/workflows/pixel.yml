@@ -59,12 +59,13 @@ jobs:
           path: clang
           key: clang-${{ env.AOSP_TOOLCHAIN_BRANCH }}-${{ env.AOSP_CLANG_VERSION }}
 
-      - name: 下载 Clang
+      - name: 下载 Clang (从 GitHub 发布)
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
-          mkdir -p clang &&
-          curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/${{ env.AOSP_TOOLCHAIN_BRANCH }}-release/clang-${{ env.AOSP_CLANG_VERSION }}.tar.gz" |
-          tar xz -C clang
+          mkdir -p clang
+          curl -L -o clang.tar.gz "https://github.com/Geeeeeker/boot/releases/download/clang-prebuilts-20260319-031015/clang-r547379.tar.gz"
+          tar xzf clang.tar.gz -C clang --strip-components=1
+          rm clang.tar.gz
 
       - name: 缓存 ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -109,6 +110,8 @@ jobs:
           echo "CONFIG_USBIP_HOST=m" >> $DEFCONFIG
           # 允许 section mismatch 警告而不中止编译
           echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DEFCONFIG
+          # 模块版本控制
+          echo "CONFIG_MODVERSIONS=y" >> $DEFCONFIG
 
       - name: 编译内核与设备树
         working-directory: kernel
