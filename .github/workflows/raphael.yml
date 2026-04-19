@@ -1,4 +1,4 @@
-name: 编译内核(KSU-next + SUSFS 4.14 + LXC/Docker 官方支持)
+name: 编译内核 (内置 KSU-next + SUSFS)
 
 on:
   push:
@@ -14,65 +14,60 @@ on:
         type: boolean
         default: true
       feature_usb_gadget:
-        description: 'USB Gadget / 大容量存储 (Mass Storage)'
+        description: 'USB Gadget / 大容量存储'
         type: boolean
         default: true
       feature_usb_serial:
-        description: 'USB 转串口 (CH340/CH341, CH343)'
+        description: 'USB 转串口 (CH340等)'
         type: boolean
         default: true
       feature_usbip:
-        description: 'USB/IP 支持 (内核模块 + 用户空间工具)'
+        description: 'USB/IP 支持'
         type: boolean
         default: true
       feature_lxc:
-        description: 'LXC 容器支持 (命名空间/cgroups)'
+        description: 'LXC 容器支持'
         type: boolean
         default: true
       feature_docker:
-        description: 'Docker 官方支持 (OverlayFS, cgroup v1)'
+        description: 'Docker 官方支持'
         type: boolean
         default: true
       feature_uvc:
-        description: 'UVC 摄像头支持 (USB Video Class)'
+        description: 'UVC 摄像头支持'
         type: boolean
         default: false
       feature_zram:
-        description: 'ZRAM 内存压缩 (zstd)'
+        description: 'ZRAM 内存压缩'
         type: boolean
         default: true
       feature_android_container:
-        description: 'Android 容器支持 (Binder/Ashmem/ION)'
+        description: 'Android 容器 (Binder/Ashmem)'
         type: boolean
         default: true
       feature_ksu_symbols:
-        description: 'KernelSU 符号支持 (KPROBES/KALLSYMS_ALL)'
+        description: 'KernelSU 符号 (KPROBES/KALLSYMS)'
         type: boolean
         default: true
       feature_kvm:
-        description: 'KVM 虚拟化支持'
+        description: 'KVM 虚拟化'
         type: boolean
         default: false
       feature_rtl8188eu:
-        description: 'RTL8188EU 无线驱动 (编译进内核)'
+        description: 'RTL8188EU 无线驱动'
         type: boolean
         default: false
       localversion:
-        description: '内核本地版本字符串 (LOCALVERSION)'
+        description: '内核本地版本字符串'
         type: string
         default: '-Geeeeeker-perf'
 
 env:
   AOSP_TOOLCHAIN_BRANCH: android16-release
   AOSP_CLANG_VERSION: r547379
-  KERNELSU_VERSION: next
-  APATCH_VERSION: 11142
-  APATCH_TAG: 11142_166daa0_on_HEAD-release-signed
-  MAGISK_CANARY_URL: https://github.com/topjohnwu/Magisk/releases/download/v30.7/Magisk-v30.7.apk
-  SUSFS_ENABLE: "true"
-  SUSFS_SOURCE: "https://gitlab.com/simonpunk/susfs4ksu.git"
-  SUSFS_BRANCH: "1.4.2-kernel-4.14"
   ANDROID_VERSION: "16"
+  # SUSFS 已内置，无需外部源码
+  SUSFS_ENABLE: "true"
 
 permissions:
   contents: write
@@ -95,54 +90,12 @@ jobs:
           sudo apt update > /dev/null
           sudo apt install -y ${{ env.PACKAGES }} > /dev/null
 
-      - name: 同步仓库 (内核源码)
+      - name: 同步内核源码 (已包含 KSU-next 和 SUSFS)
         uses: actions/checkout@v4
         with:
           repository: SOVIET-ANDROID/kernel_xiaomi_raphael
-          ref: dev2
+          ref: 16.0-SUSFS
           path: kernel
-
-      - name: 克隆 SUSFS 源码
-        if: env.SUSFS_ENABLE == 'true'
-        run: |
-          git clone --depth=1 --branch ${{ env.SUSFS_BRANCH }} ${{ env.SUSFS_SOURCE }} susfs4ksu
-
-      - name: 确认内核中已存在 KernelSU-next
-        working-directory: kernel
-        run: |
-          if [ ! -d drivers/kernelsu ]; then
-            echo "错误：仓库中未找到 drivers/kernelsu，请确认内核已集成 kernelsu-next"
-            exit 1
-          fi
-          echo "检测到自带的 KernelSU-next，跳过官方 KernelSU 克隆"
-
-      - name: 应用 SUSFS 补丁到内核
-        if: env.SUSFS_ENABLE == 'true'
-        working-directory: kernel
-        run: |
-          # 复制通用补丁文件
-          cp ../susfs4ksu/kernel_patches/fs/* fs/
-          cp ../susfs4ksu/kernel_patches/include/linux/* include/linux/
-
-          # 应用 4.14 专用补丁
-          patch -p1 < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.14.patch || true
-
-          # 修复 fdinfo.c 可能存在的变量错误
-          if [ -f fs/notify/fdinfo.c ]; then
-            sed -i '144s/mask,/mark->mask,/' fs/notify/fdinfo.c || true
-          fi
-
-      - name: 为 KernelSU-next 启用 SUSFS 支持
-        if: env.SUSFS_ENABLE == 'true'
-        working-directory: kernel
-        run: |
-          cd drivers/kernelsu
-          # 复制补丁并调整路径（补丁假定在 kernel/ 目录下，我们目前在 drivers/kernelsu）
-          cp ../../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch .
-          sed -i 's|a/kernel/|a/|g' 10_enable_susfs_for_ksu.patch
-          sed -i 's|b/kernel/|b/|g' 10_enable_susfs_for_ksu.patch
-          patch -p1 < 10_enable_susfs_for_ksu.patch || true
-          cd -
 
       - name: 缓存 Clang
         id: cache-clang
@@ -165,171 +118,89 @@ jobs:
           restore-keys: kernel-${{ matrix.device }}
           max-size: 5G
 
-      - name: 配置内核基础参数 (动态 + SUSFS 默认开启)
+      - name: 配置内核参数
         working-directory: kernel
         run: |
           DEFCONFIG="arch/arm64/configs/raphael_defconfig"
 
-          # ---------- 基础系统 ----------
+          # 基础系统
           if [[ "${{ github.event.inputs.feature_base }}" == "true" ]]; then
             echo "CONFIG_SYSVIPC=y" >> $DEFCONFIG
-            echo "CONFIG_SYSVIPC_SYSCTL=y" >> $DEFCONFIG
-            echo "CONFIG_SYSVIPC_COMPAT=y" >> $DEFCONFIG
             echo "CONFIG_EPOLL=y" >> $DEFCONFIG
-            echo "CONFIG_EVENTFD=y" >> $DEFCONFIG
-            echo "CONFIG_SIGNALFD=y" >> $DEFCONFIG
-            echo "CONFIG_INOTIFY_USER=y" >> $DEFCONFIG
-            echo "CONFIG_SHMEM=y" >> $DEFCONFIG
             echo "CONFIG_TMPFS=y" >> $DEFCONFIG
-            echo "CONFIG_TMPFS_POSIX_ACL=y" >> $DEFCONFIG
-            echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG
           fi
 
-          # 禁用 LTO / 关闭 werror
+          # 禁用 LTO / werror
           sed -i 's/CONFIG_LTO=y/CONFIG_LTO=n/' $DEFCONFIG
-          sed -i 's/CONFIG_LTO_CLANG=y/CONFIG_LTO_CLANG=n/' $DEFCONFIG
-          sed -i 's/CONFIG_THINLTO=y/CONFIG_THINLTO=n/' $DEFCONFIG
           echo "CONFIG_LTO_NONE=y" >> $DEFCONFIG
           echo "CONFIG_CC_WERROR=n" >> $DEFCONFIG
 
-          # ---------- USB Gadget ----------
+          # USB Gadget
           if [[ "${{ github.event.inputs.feature_usb_gadget }}" == "true" ]]; then
             echo "CONFIG_USB_GADGET=y" >> $DEFCONFIG
             echo "CONFIG_USB_CONFIGFS=y" >> $DEFCONFIG
-            echo "CONFIG_USB_CONFIGFS_MASS_STORAGE=y" >> $DEFCONFIG
-            echo "CONFIG_USB_F_MASS_STORAGE=y" >> $DEFCONFIG
-            echo "CONFIG_USB_MASS_STORAGE=y" >> $DEFCONFIG
           fi
 
-          # ---------- USB 转串口 ----------
+          # USB 串口
           if [[ "${{ github.event.inputs.feature_usb_serial }}" == "true" ]]; then
             echo "CONFIG_USB_SERIAL=y" >> $DEFCONFIG
-            echo "CONFIG_USB_SERIAL_CONSOLE=y" >> $DEFCONFIG
-            echo "CONFIG_USB_SERIAL_GENERIC=y" >> $DEFCONFIG
             echo "CONFIG_USB_SERIAL_CH341=y" >> $DEFCONFIG
-            echo "CONFIG_USB_SERIAL_FTDI_SIO=y" >> $DEFCONFIG
-            echo "CONFIG_USB_SERIAL_CP210X=y" >> $DEFCONFIG
-            echo "CONFIG_USB_SERIAL_PL2303=y" >> $DEFCONFIG
-            echo "CONFIG_USB_SERIAL_CH343=m" >> $DEFCONFIG
           fi
 
-          # ---------- USB/IP ----------
+          # USB/IP
           if [[ "${{ github.event.inputs.feature_usbip }}" == "true" ]]; then
             echo "CONFIG_USBIP_CORE=y" >> $DEFCONFIG
-            echo "CONFIG_USBIP_VHCI_HCD=y" >> $DEFCONFIG
-            echo "CONFIG_USBIP_HOST=y" >> $DEFCONFIG
           fi
 
-          # ---------- LXC 容器 ----------
+          # LXC
           if [[ "${{ github.event.inputs.feature_lxc }}" == "true" ]]; then
             echo "CONFIG_NAMESPACES=y" >> $DEFCONFIG
             echo "CONFIG_CGROUPS=y" >> $DEFCONFIG
-            echo "CONFIG_UTS_NS=y" >> $DEFCONFIG
-            echo "CONFIG_IPC_NS=y" >> $DEFCONFIG
             echo "CONFIG_USER_NS=y" >> $DEFCONFIG
-            echo "CONFIG_PID_NS=y" >> $DEFCONFIG
-            echo "CONFIG_NET_NS=y" >> $DEFCONFIG
-            echo "CONFIG_DEVPTS_MULTIPLE_INSTANCES=y" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_DEVICE=y" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_CPUACCT=y" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_FREEZER=y" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_SCHED=y" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_PIDS=y" >> $DEFCONFIG
-            echo "CONFIG_MEMCG=y" >> $DEFCONFIG
-            echo "CONFIG_BLK_CGROUP=y" >> $DEFCONFIG
-            echo "CONFIG_CFS_BANDWIDTH=y" >> $DEFCONFIG
-            echo "CONFIG_RT_GROUP_SCHED=y" >> $DEFCONFIG
-            echo "CONFIG_VETH=y" >> $DEFCONFIG
+          fi
+
+          # Docker
+          if [[ "${{ github.event.inputs.feature_docker }}" == "true" ]]; then
+            echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
+            echo "CONFIG_VLAN_8021Q=y" >> $DEFCONFIG
             echo "CONFIG_BRIDGE=y" >> $DEFCONFIG
           fi
 
-          # ---------- Docker / Podman ----------
-          if [[ "${{ github.event.inputs.feature_docker }}" == "true" ]]; then
-            echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
-            echo "CONFIG_FUSE_FS=m" >> $DEFCONFIG
-            echo "CONFIG_SECCOMP=y" >> $DEFCONFIG
-            echo "CONFIG_SECCOMP_FILTER=y" >> $DEFCONFIG
-            echo "CONFIG_TUN=m" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_BPF=y" >> $DEFCONFIG
-          else
-            echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
-          fi
-
-          # ---------- UVC 摄像头 ----------
-          if [[ "${{ github.event.inputs.feature_uvc }}" == "true" ]]; then
-            echo "CONFIG_USB_VIDEO_CLASS=y" >> $DEFCONFIG
-            echo "CONFIG_MEDIA_SUPPORT=y" >> $DEFCONFIG
-            echo "CONFIG_MEDIA_CAMERA_SUPPORT=y" >> $DEFCONFIG
-            echo "CONFIG_VIDEO_DEV=y" >> $DEFCONFIG
-            echo "CONFIG_VIDEO_V4L2=y" >> $DEFCONFIG
-          fi
-
-          # ---------- ZRAM ----------
+          # ZRAM
           if [[ "${{ github.event.inputs.feature_zram }}" == "true" ]]; then
             echo "CONFIG_ZRAM=y" >> $DEFCONFIG
-            echo "CONFIG_ZRAM_DEF_COMP_ZSTD=y" >> $DEFCONFIG
-            echo "CONFIG_CRYPTO_ZSTD=y" >> $DEFCONFIG
-            echo "CONFIG_ZSTD_COMPRESS=y" >> $DEFCONFIG
-            echo "CONFIG_ZSTD_DECOMPRESS=y" >> $DEFCONFIG
           fi
 
-          # ---------- Android 容器 ----------
+          # Android 容器
           if [[ "${{ github.event.inputs.feature_android_container }}" == "true" ]]; then
-            echo "CONFIG_STAGING=y" >> $DEFCONFIG
             echo "CONFIG_ASHMEM=y" >> $DEFCONFIG
-            echo "CONFIG_ANDROID=y" >> $DEFCONFIG
             echo "CONFIG_ANDROID_BINDER_IPC=y" >> $DEFCONFIG
-            echo "CONFIG_ANDROID_BINDERFS=y" >> $DEFCONFIG
-            echo "CONFIG_ION=y" >> $DEFCONFIG
-            echo "CONFIG_ION_SYSTEM_HEAP=y" >> $DEFCONFIG
           fi
 
-          # ---------- KPROBES / KALLSYMS ----------
+          # KPROBES / KALLSYMS
           if [[ "${{ github.event.inputs.feature_ksu_symbols }}" == "true" ]]; then
-            echo "CONFIG_KALLSYMS=y" >> $DEFCONFIG
             echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
             echo "CONFIG_KPROBES=y" >> $DEFCONFIG
-            echo "CONFIG_HAVE_KPROBES=y" >> $DEFCONFIG
-            echo "CONFIG_KPROBE_EVENTS=y" >> $DEFCONFIG
-            echo "CONFIG_DEBUG_FS=y" >> $DEFCONFIG
-          else
-            echo "CONFIG_KALLSYMS=y" >> $DEFCONFIG
-            echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
           fi
 
-          # ---------- KVM ----------
+          # KVM
           if [[ "${{ github.event.inputs.feature_kvm }}" == "true" ]]; then
-            echo "CONFIG_VIRTUALIZATION=y" >> $DEFCONFIG
             echo "CONFIG_KVM=y" >> $DEFCONFIG
-            echo "CONFIG_KVM_ARM_HOST=y" >> $DEFCONFIG
-            echo "CONFIG_KVM_ARM_PMU=y" >> $DEFCONFIG
           fi
 
-          # ---------- RTL8188EU 驱动配置 ----------
+          # RTL8188EU
           if [[ "${{ github.event.inputs.feature_rtl8188eu }}" == "true" ]]; then
-            echo "CONFIG_WLAN=y" >> $DEFCONFIG
-            echo "CONFIG_WIRELESS=y" >> $DEFCONFIG
-            echo "CONFIG_WEXT_CORE=y" >> $DEFCONFIG
-            echo "CONFIG_WEXT_PROC=y" >> $DEFCONFIG
-            echo "CONFIG_WEXT_PRIV=y" >> $DEFCONFIG
-            echo "CONFIG_CFG80211=y" >> $DEFCONFIG
-            echo "CONFIG_MAC80211=y" >> $DEFCONFIG
             echo "CONFIG_RTL8188EU=y" >> $DEFCONFIG
           fi
 
-          # ---------- LINDROID EVDI ----------
+          # LINDROID EVDI
           echo "CONFIG_DRM_LINDROID_EVDI=y" >> $DEFCONFIG
 
-          # ---------- KernelSU 基础 ----------
+          # KernelSU 基础 (模块形式)
           echo "CONFIG_KSU=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_DEBUG=n" >> $DEFCONFIG
-          echo "CONFIG_KSU_DISABLE_MANAGER=n" >> $DEFCONFIG
-          echo "CONFIG_KSU_DISABLE_POLICY=n" >> $DEFCONFIG
-          echo "CONFIG_KSU_ALLOWLIST_WORKAROUND=n" >> $DEFCONFIG
-          echo "CONFIG_KSU_MANUAL_HOOK=n" >> $DEFCONFIG
           echo "CONFIG_KSU_KPROBES_HOOK=y" >> $DEFCONFIG
 
-          # ---------- SUSFS (独立默认开启) ----------
+          # SUSFS 选项 (源码已内置，直接启用)
           if [[ "${{ env.SUSFS_ENABLE }}" == "true" ]]; then
             echo "CONFIG_KSU_SUSFS=y" >> $DEFCONFIG
             echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> $DEFCONFIG
@@ -342,50 +213,34 @@ jobs:
             echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> $DEFCONFIG
           fi
 
-          # 禁用 Btrfs（避免 timespec 编译错误）
+          # 禁用 Btrfs (避免类型错误)
           echo "CONFIG_BTRFS_FS=n" >> $DEFCONFIG
 
           # 本地版本
-          LOCALVER="${{ github.event.inputs.localversion }}"
-          echo "CONFIG_LOCALVERSION=\"${LOCALVER}\"" >> $DEFCONFIG
+          echo "CONFIG_LOCALVERSION=\"${{ github.event.inputs.localversion }}\"" >> $DEFCONFIG
 
           # 禁用模块版本校验
-          sed -i 's/CONFIG_MODVERSIONS=y/# CONFIG_MODVERSIONS is not set/' $DEFCONFIG
           echo "# CONFIG_MODVERSIONS is not set" >> $DEFCONFIG
 
-          echo "CONFIG_BACKLIGHT_CLASS_DEVICE=y" >> $DEFCONFIG
-          echo "CONFIG_BACKLIGHT_QCOM=y" >> $DEFCONFIG
-
-      - name: 集成 RTL8188EU 驱动源码到内核树
+      - name: 集成 RTL8188EU 驱动
         if: github.event.inputs.feature_rtl8188eu == 'true'
         working-directory: kernel
         run: |
-          export GIT_ASKPASS=echo
           git clone --depth=1 --branch master https://github.com/Geeeeeker/android_kernel_xiaomi_sdm845.git rtl8188eus-repo
-          if [ -d "rtl8188eus-repo/drivers/rtl8188eus" ]; then
-            cp -r rtl8188eus-repo/drivers/rtl8188eus drivers/
-            echo "obj-\$(CONFIG_RTL8188EU) += rtl8188eus/" >> drivers/Makefile
-            echo 'source "drivers/rtl8188eus/Kconfig"' >> drivers/Kconfig
-          else
-            echo "Error: rtl8188eus directory not found"
-            exit 1
-          fi
+          cp -r rtl8188eus-repo/drivers/rtl8188eus drivers/
+          echo "obj-\$(CONFIG_RTL8188EU) += rtl8188eus/" >> drivers/Makefile
+          echo 'source "drivers/rtl8188eus/Kconfig"' >> drivers/Kconfig
           rm -rf rtl8188eus-repo
 
-      - name: 配置 LXC/Docker 支持 (官方方式)
+      - name: 配置 LXC/Docker 官方支持
         if: github.event.inputs.feature_lxc == 'true' || github.event.inputs.feature_docker == 'true'
         working-directory: kernel
         run: |
-          # 克隆 utils 仓库
           git clone --depth=1 https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
-          # 添加 Kconfig 引用
           echo 'source "utils/Kconfig"' >> Kconfig
-          # 写入 Docker 选项及禁用 paranoid network
-          DEFCONFIG="arch/arm64/configs/raphael_defconfig"
-          echo "CONFIG_DOCKER=y" >> $DEFCONFIG
-          sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' $DEFCONFIG
-          echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> $DEFCONFIG
-          # 无需手动打补丁，官方说明仅需以上配置
+          echo "CONFIG_DOCKER=y" >> arch/arm64/configs/raphael_defconfig
+          sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' arch/arm64/configs/raphael_defconfig
+          echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> arch/arm64/configs/raphael_defconfig
 
       - name: 编译内核
         working-directory: kernel
@@ -393,7 +248,6 @@ jobs:
           export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
           export KBUILD_BUILD_USER=${{ github.repository_owner }}
           export KBUILD_BUILD_HOST=github-runner
-          export KBUILD_BUILD_TIMESTAMP=$(date -u -d "@$(git log -1 --format=%at)" +"%a %b %d %H:%M:%S %Z %Y")
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           make -j$(nproc --all) \
@@ -405,107 +259,50 @@ jobs:
             KCFLAGS="-Wno-unknown-warning-option -Wno-implicit-function-declaration -Wno-error" \
             raphael_defconfig all
 
-      - name: 准备模块收集目录
-        run: mkdir -p $GITHUB_WORKSPACE/modules-out
-
-      - name: 收集 USB/IP 内核模块
-        if: github.event.inputs.feature_usbip == 'true'
+      - name: 收集内核模块
         run: |
-          cp kernel/out/drivers/usb/usbip/*.ko $GITHUB_WORKSPACE/modules-out/ || true
-
-      - name: 收集 SUSFS 内核模块
-        if: env.SUSFS_ENABLE == 'true'
-        run: |
-          cp kernel/out/fs/susfs.ko $GITHUB_WORKSPACE/modules-out/ || true
-          cp kernel/out/fs/sus_su.ko $GITHUB_WORKSPACE/modules-out/ || true
-        continue-on-error: true
-
-      - name: 收集 LINDROID EVDI 模块
-        run: |
-          cp kernel/out/drivers/gpu/drm/evdi/evdi.ko $GITHUB_WORKSPACE/modules-out/ || true
-          cp kernel/out/drivers/gpu/drm/lindroid-evd.ko $GITHUB_WORKSPACE/modules-out/ || true
-        continue-on-error: true
-
-      - name: 打包内核模块
-        run: |
-          cd $GITHUB_WORKSPACE/modules-out
-          if [ "$(ls -A .)" ]; then
-            tar czf ../kernel-modules-${{ matrix.device }}.tar.gz *
+          mkdir -p modules-out
+          cp kernel/out/drivers/usb/usbip/*.ko modules-out/ 2>/dev/null || true
+          cp kernel/out/fs/susfs.ko modules-out/ 2>/dev/null || true
+          cp kernel/out/fs/sus_su.ko modules-out/ 2>/dev/null || true
+          cp kernel/out/drivers/kernelsu/kernelsu.ko modules-out/ 2>/dev/null || true
+          cp kernel/out/drivers/gpu/drm/evdi/evdi.ko modules-out/ 2>/dev/null || true
+          cp kernel/out/drivers/gpu/drm/lindroid-evd.ko modules-out/ 2>/dev/null || true
+          if [ "$(ls -A modules-out)" ]; then
+            tar czf kernel-modules-${{ matrix.device }}.tar.gz -C modules-out .
             echo "MODULES_PACKAGE=kernel-modules-${{ matrix.device }}.tar.gz" >> $GITHUB_ENV
-          else
-            echo "MODULES_PACKAGE=" >> $GITHUB_ENV
           fi
 
-      - name: 上传内核模块包
+      - name: 上传模块包
         if: env.MODULES_PACKAGE != ''
         uses: actions/upload-artifact@v4
         with:
           name: kernel-modules-${{ matrix.device }}
           path: ${{ env.MODULES_PACKAGE }}
 
-      - name: 设置 QEMU 并编译 USB/IP 工具
+      - name: 编译 USB/IP 工具 (可选)
         if: github.event.inputs.feature_usbip == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-user-static binfmt-support
+          sudo apt-get install -y qemu-user-static
           docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+          mkdir -p usbip-out
+          docker run --rm --platform linux/arm64 -v $PWD:/workspace -w /workspace/kernel arm64v8/ubuntu:22.04 \
+            bash -c "cd tools/usb/usbip && ./autogen.sh && ./configure --with-tcp-wrappers=no && make -j1 && cp src/.libs/usbip src/.libs/usbipd /workspace/usbip-out/"
+          tar czf usbip-arm64-bundle.tar.gz -C usbip-out .
 
-          mkdir -p usbip-out/{bin,libs}
-          docker run --rm --platform linux/arm64 \
-            --memory=4g \
-            -v ${{ github.workspace }}:/workspace \
-            -v ${{ github.workspace }}/usbip-out:/output \
-            -w /workspace/kernel \
-            arm64v8/ubuntu:22.04 \
-            bash -c "
-              set -e
-              export DEBIAN_FRONTEND=noninteractive
-              apt update
-              apt install -y build-essential autoconf libtool pkg-config libudev-dev:arm64 libssl-dev:arm64 flex bison bc libelf-dev file patchelf
-              export ARCH=arm64
-              export CROSS_COMPILE=aarch64-linux-gnu-
-              cd tools/usb/usbip
-              ./autogen.sh
-              ./configure CFLAGS=\"-fPIC -Wno-error\" --with-tcp-wrappers=no
-              make -j1
-              cp src/.libs/usbip /output/bin/
-              cp src/.libs/usbipd /output/bin/
-              cp libsrc/.libs/libusbip.so.0* /output/libs/
-              cd /output
-              BINARIES=\"bin/usbip bin/usbipd libs/libusbip.so.0*\"
-              for file in \$BINARIES; do
-                [ -f \"\$file\" ] && ldd \"\$file\" | awk '{print \$3}' | grep ^/ | xargs -I {} cp -n {} libs/ 2>/dev/null || true
-              done
-              cp -n /lib/ld-linux-aarch64.so.1 libs/ || true
-            "
-          cd usbip-out && tar czf ../usbip-arm64-bundle.tar.gz . && cd ..
-
-      - name: 上传 USB/IP 捆绑包
+      - name: 上传 USB/IP 包
         if: github.event.inputs.feature_usbip == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: usbip-arm64-bundle
           path: usbip-arm64-bundle.tar.gz
 
-      # ---------- APK 下载 ----------
-      - name: 下载管理 APK
+      - name: 下载管理器 APK (可选)
         run: |
           mkdir -p apk-output
-          wget -O apk-output/APatch-Manager.apk "https://github.com/bmax121/APatch/releases/download/${{ env.APATCH_VERSION }}/APatch_${{ env.APATCH_TAG }}.apk"
-          wget -O apk-output/Magisk-Canary.apk "${{ env.MAGISK_CANARY_URL }}"
+          wget -O apk-output/Magisk.apk "https://github.com/topjohnwu/Magisk/releases/download/v30.7/Magisk-v30.7.apk" || true
         continue-on-error: true
-
-      - name: 下载 KernelSU CI 管理器
-        continue-on-error: true
-        uses: dawidd6/action-download-artifact@v4
-        with:
-          repo: rsuntk/KernelSU
-          workflow: build-manager.yml
-          name: manager
-          path: manager
-      - name: 复制 KernelSU Manager
-        if: steps.download-ci-manager.outcome == 'success'
-        run: cp manager/*.apk apk-output/KernelSU-Manager.apk 2>/dev/null || true
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4
@@ -513,7 +310,6 @@ jobs:
           name: Manager-APKs
           path: apk-output/*.apk
 
-      # ---------- 打包 ----------
       - name: 打包 AnyKernel3
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3 ak3
@@ -522,7 +318,7 @@ jobs:
           cd ak3
           cat >anykernel.sh <<EOF
           properties() { '
-          kernel.string=KernelSU-next + SUSFS 4.14 for ${{ matrix.device }}
+          kernel.string=KernelSU-next + SUSFS for ${{ matrix.device }}
           device.name1=${{ matrix.device }}
           do.devicecheck=1
           '; }
