@@ -96,6 +96,15 @@ jobs:
           ref: 16.0-SUSFS
           path: kernel
 
+      # ========== 新增：替换 Btrfs 相关文件 ==========
+      - name: 替换 Btrfs 文件 (inode.c 与 file.c)
+        working-directory: kernel
+        run: |
+          mkdir -p fs/btrfs
+          curl -L -o fs/btrfs/inode.c https://raw.githubusercontent.com/Geeeeeker/android_kernel_xiaomi_sm8150_419/lineage-23.0_raphael/fs/btrfs/inode.c
+          curl -L -o fs/btrfs/file.c https://raw.githubusercontent.com/Geeeeeker/android_kernel_xiaomi_sm8150_419/lineage-23.0_raphael/fs/btrfs/file.c
+          echo "Btrfs source files replaced successfully."
+
       - name: 缓存 Clang
         id: cache-clang
         uses: actions/cache@v4
