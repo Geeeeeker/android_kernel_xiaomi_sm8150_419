@@ -97,6 +97,34 @@ jobs:
           path: kernel
 
       # ========== 新增：替换 Btrfs 相关文件 ==========
+- name: 替换 Btrfs 文件 (inode.c 与 file.c)
+  working-directory: kernel
+  run: |
+    mkdir -p fs/btrfs
+    curl -L -o fs/btrfs/inode.c https://raw.githubusercontent.com/Geeeeeker/android_kernel_xiaomi_sm8150_419/lineage-23.0_raphael/fs/btrfs/inode.c
+    curl -L -o fs/btrfs/file.c https://raw.githubusercontent.com/Geeeeeker/android_kernel_xiaomi_sm8150_419/lineage-23.0_raphael/fs/btrfs/file.c
+    echo "Btrfs source files replaced."
+
+- name: 修复 btrfs 编译错误
+  working-directory: kernel
+  run: |
+    # 1. 将 timespec 改为 timespec64
+    sed -i 's/struct timespec now = current_time/struct timespec64 now = current_time/g' fs/btrfs/file.c fs/btrfs/inode.c
+    # 2. 移除对 iversion.h 的包含（因为内核已提供定义，且包含它会导致类型冲突）
+    sed -i '/#include <linux\/iversion.h>/d' fs/btrfs/inode.c fs/btrfs/file.c
+    echo "Patched btrfs files."
+这样既解决了 timespec64 问题，又避免了 iversion.h 类型冲突。
+
+完整的工作流片段（仅相关部分）
+
+yaml
+      - name: 同步内核源码 (内置 KSU-next 和 SUSFS)
+        uses: actions/checkout@v4
+        with:
+          repository: SOVIET-ANDROID/kernel_xiaomi_raphael
+          ref: 16.0-SUSFS
+          path: kernel
+
       - name: 替换 Btrfs 文件 (inode.c 与 file.c)
         working-directory: kernel
         run: |
@@ -105,18 +133,12 @@ jobs:
           curl -L -o fs/btrfs/file.c https://raw.githubusercontent.com/Geeeeeker/android_kernel_xiaomi_sm8150_419/lineage-23.0_raphael/fs/btrfs/file.c
           echo "Btrfs source files replaced."
 
-      - name: 添加缺失的 iversion.h 头文件
-        working-directory: kernel
-        run: |
-          mkdir -p include/linux
-          curl -L -o include/linux/iversion.h https://raw.githubusercontent.com/Geeeeeker/android_kernel_xiaomi_sm8150_419/lineage-23.0_raphael/include/linux/iversion.h
-          echo "Added iversion.h header."
-
-      - name: 修复 btrfs timespec 类型错误
+      - name: 修复 btrfs 编译错误
         working-directory: kernel
         run: |
           sed -i 's/struct timespec now = current_time/struct timespec64 now = current_time/g' fs/btrfs/file.c fs/btrfs/inode.c
-          echo "Patched timespec -> timespec64 in btrfs files."
+          sed -i '/#include <linux\/iversion.h>/d' fs/btrfs/inode.c fs/btrfs/file.c
+          echo "Patched btrfs files."
 
       - name: 缓存 Clang
         id: cache-clang
