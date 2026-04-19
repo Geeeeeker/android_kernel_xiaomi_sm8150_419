@@ -396,7 +396,7 @@ jobs:
             LLVM=1 \
             LLVM_IAS=1 \
             O=out \
-            KCFLAGS="-Wno-unknown-warning-option -Wno-error" \
+            KCFLAGS="-Wno-unknown-warning-option -Wno-implicit-function-declaration -Wno-error" \
             raphael_defconfig all
 
       - name: 准备模块收集目录
