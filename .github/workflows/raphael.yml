@@ -1,4 +1,4 @@
-name: 编译内核 (内置 KSU-next + SUSFS + Docker 原生支持)
+name: 编译内核 (内置 KSU-next + SUSFS + Docker)
 
 on:
   push:
@@ -10,55 +10,55 @@ on:
   workflow_dispatch:
     inputs:
       feature_base:
-        description: '基础系统配置 (SYSVIPC, EPOLL, TMPFS等)'
+        description: '基础系统配置'
         type: boolean
         default: true
       feature_usb_gadget:
-        description: 'USB Gadget / 大容量存储'
+        description: 'USB Gadget'
         type: boolean
         default: true
       feature_usb_serial:
-        description: 'USB 转串口 (CH340等)'
+        description: 'USB 转串口'
         type: boolean
         default: true
       feature_usbip:
-        description: 'USB/IP 支持'
+        description: 'USB/IP'
         type: boolean
         default: true
       feature_lxc:
-        description: 'LXC 容器支持 (命名空间/cgroups)'
+        description: 'LXC 容器'
         type: boolean
         default: true
       feature_docker:
-        description: 'Docker 支持 (OverlayFS, bridge, veth)'
+        description: 'Docker 支持'
         type: boolean
         default: true
       feature_uvc:
-        description: 'UVC 摄像头支持'
+        description: 'UVC 摄像头'
         type: boolean
         default: false
       feature_zram:
-        description: 'ZRAM 内存压缩'
+        description: 'ZRAM'
         type: boolean
         default: true
       feature_android_container:
-        description: 'Android 容器 (Binder/Ashmem)'
+        description: 'Android 容器'
         type: boolean
         default: true
       feature_ksu_symbols:
-        description: 'KernelSU 符号 (KPROBES/KALLSYMS)'
+        description: 'KernelSU 符号'
         type: boolean
         default: true
       feature_kvm:
-        description: 'KVM 虚拟化'
+        description: 'KVM'
         type: boolean
         default: false
       feature_rtl8188eu:
-        description: 'RTL8188EU 无线驱动'
+        description: 'RTL8188EU 无线'
         type: boolean
         default: false
       localversion:
-        description: '内核本地版本字符串'
+        description: '本地版本'
         type: string
         default: '-Geeeeeker-perf'
 
@@ -89,7 +89,7 @@ jobs:
           sudo apt update > /dev/null
           sudo apt install -y ${{ env.PACKAGES }} > /dev/null
 
-      - name: 同步内核源码 (已包含 KSU-next 和 SUSFS)
+      - name: 同步内核源码 (内置 KSU-next 和 SUSFS)
         uses: actions/checkout@v4
         with:
           repository: SOVIET-ANDROID/kernel_xiaomi_raphael
@@ -117,135 +117,96 @@ jobs:
           restore-keys: kernel-${{ matrix.device }}
           max-size: 5G
 
-      - name: 配置内核参数 (直接在 defconfig 中添加所有必要选项)
+      - name: 集成 RTL8188EU 驱动
+        if: github.event.inputs.feature_rtl8188eu == 'true'
+        working-directory: kernel
+        run: |
+          git clone --depth=1 --branch master https://github.com/Geeeeeker/android_kernel_xiaomi_sdm845.git rtl8188eus-repo
+          cp -r rtl8188eus-repo/drivers/rtl8188eus drivers/
+          echo "obj-\$(CONFIG_RTL8188EU) += rtl8188eus/" >> drivers/Makefile
+          echo 'source "drivers/rtl8188eus/Kconfig"' >> drivers/Kconfig
+          rm -rf rtl8188eus-repo
+
+      - name: 配置 LXC/Docker 官方支持
+        if: github.event.inputs.feature_lxc == 'true' || github.event.inputs.feature_docker == 'true'
+        working-directory: kernel
+        run: |
+          git clone --depth=1 https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
+          echo 'source "utils/Kconfig"' >> Kconfig
+
+      - name: 配置内核参数
         working-directory: kernel
         run: |
           DEFCONFIG="arch/arm64/configs/raphael_defconfig"
 
-          # 清除可能冲突的配置
-          sed -i '/CONFIG_BTRFS_FS/d' $DEFCONFIG
-          sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' $DEFCONFIG
-          sed -i '/CONFIG_MODVERSIONS/d' $DEFCONFIG
-
-          # ---------- 基础系统 ----------
+          # 基础系统
           if [[ "${{ github.event.inputs.feature_base }}" == "true" ]]; then
             echo "CONFIG_SYSVIPC=y" >> $DEFCONFIG
             echo "CONFIG_EPOLL=y" >> $DEFCONFIG
             echo "CONFIG_TMPFS=y" >> $DEFCONFIG
           fi
 
-          # 禁用 LTO / werror
           sed -i 's/CONFIG_LTO=y/CONFIG_LTO=n/' $DEFCONFIG
           echo "CONFIG_LTO_NONE=y" >> $DEFCONFIG
           echo "CONFIG_CC_WERROR=n" >> $DEFCONFIG
 
-          # ---------- USB Gadget ----------
           if [[ "${{ github.event.inputs.feature_usb_gadget }}" == "true" ]]; then
             echo "CONFIG_USB_GADGET=y" >> $DEFCONFIG
             echo "CONFIG_USB_CONFIGFS=y" >> $DEFCONFIG
           fi
 
-          # ---------- USB 串口 ----------
           if [[ "${{ github.event.inputs.feature_usb_serial }}" == "true" ]]; then
             echo "CONFIG_USB_SERIAL=y" >> $DEFCONFIG
             echo "CONFIG_USB_SERIAL_CH341=y" >> $DEFCONFIG
           fi
 
-          # ---------- USB/IP ----------
           if [[ "${{ github.event.inputs.feature_usbip }}" == "true" ]]; then
             echo "CONFIG_USBIP_CORE=y" >> $DEFCONFIG
-            echo "CONFIG_USBIP_VHCI_HCD=y" >> $DEFCONFIG
-            echo "CONFIG_USBIP_HOST=y" >> $DEFCONFIG
           fi
 
-          # ---------- LXC / Docker 原生支持 (不依赖外部补丁) ----------
-          if [[ "${{ github.event.inputs.feature_lxc }}" == "true" || "${{ github.event.inputs.feature_docker }}" == "true" ]]; then
-            # 命名空间
+          if [[ "${{ github.event.inputs.feature_lxc }}" == "true" ]]; then
             echo "CONFIG_NAMESPACES=y" >> $DEFCONFIG
-            echo "CONFIG_UTS_NS=y" >> $DEFCONFIG
-            echo "CONFIG_IPC_NS=y" >> $DEFCONFIG
-            echo "CONFIG_USER_NS=y" >> $DEFCONFIG
-            echo "CONFIG_PID_NS=y" >> $DEFCONFIG
-            echo "CONFIG_NET_NS=y" >> $DEFCONFIG
-            # Cgroups
             echo "CONFIG_CGROUPS=y" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_CPUACCT=y" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_DEVICE=y" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_FREEZER=y" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_SCHED=y" >> $DEFCONFIG
-            echo "CONFIG_CPUSETS=y" >> $DEFCONFIG
-            echo "CONFIG_MEMCG=y" >> $DEFCONFIG
-            echo "CONFIG_BLK_CGROUP=y" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_PIDS=y" >> $DEFCONFIG
-            echo "CONFIG_CGROUP_BPF=y" >> $DEFCONFIG
-            # 网络虚拟化
-            echo "CONFIG_VETH=y" >> $DEFCONFIG
-            echo "CONFIG_BRIDGE=y" >> $DEFCONFIG
-            echo "CONFIG_BRIDGE_VLAN_FILTERING=y" >> $DEFCONFIG
-            echo "CONFIG_VLAN_8021Q=y" >> $DEFCONFIG
-            # 文件系统
+            echo "CONFIG_USER_NS=y" >> $DEFCONFIG
+          fi
+
+          if [[ "${{ github.event.inputs.feature_docker }}" == "true" ]]; then
             echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
-            # 其他 Docker 需求
-            echo "CONFIG_SECCOMP=y" >> $DEFCONFIG
-            echo "CONFIG_SECCOMP_FILTER=y" >> $DEFCONFIG
-            echo "CONFIG_TUN=m" >> $DEFCONFIG
-            # 关闭 Android 网络限制
+            echo "CONFIG_VLAN_8021Q=y" >> $DEFCONFIG
+            echo "CONFIG_BRIDGE=y" >> $DEFCONFIG
+            echo "CONFIG_DOCKER=y" >> $DEFCONFIG
+            sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' $DEFCONFIG
             echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> $DEFCONFIG
           fi
 
-          # ---------- ZRAM ----------
           if [[ "${{ github.event.inputs.feature_zram }}" == "true" ]]; then
             echo "CONFIG_ZRAM=y" >> $DEFCONFIG
-            echo "CONFIG_ZRAM_DEF_COMP_ZSTD=y" >> $DEFCONFIG
-            echo "CONFIG_CRYPTO_ZSTD=y" >> $DEFCONFIG
           fi
 
-          # ---------- Android 容器 ----------
           if [[ "${{ github.event.inputs.feature_android_container }}" == "true" ]]; then
             echo "CONFIG_ASHMEM=y" >> $DEFCONFIG
-            echo "CONFIG_ANDROID=y" >> $DEFCONFIG
             echo "CONFIG_ANDROID_BINDER_IPC=y" >> $DEFCONFIG
-            echo "CONFIG_ANDROID_BINDERFS=y" >> $DEFCONFIG
-            echo "CONFIG_ION=y" >> $DEFCONFIG
           fi
 
-          # ---------- KPROBES / KALLSYMS ----------
           if [[ "${{ github.event.inputs.feature_ksu_symbols }}" == "true" ]]; then
-            echo "CONFIG_KALLSYMS=y" >> $DEFCONFIG
             echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
             echo "CONFIG_KPROBES=y" >> $DEFCONFIG
-            echo "CONFIG_HAVE_KPROBES=y" >> $DEFCONFIG
-            echo "CONFIG_KPROBE_EVENTS=y" >> $DEFCONFIG
-            echo "CONFIG_DEBUG_FS=y" >> $DEFCONFIG
           fi
 
-          # ---------- KVM ----------
           if [[ "${{ github.event.inputs.feature_kvm }}" == "true" ]]; then
-            echo "CONFIG_VIRTUALIZATION=y" >> $DEFCONFIG
             echo "CONFIG_KVM=y" >> $DEFCONFIG
-            echo "CONFIG_KVM_ARM_HOST=y" >> $DEFCONFIG
           fi
 
-          # ---------- RTL8188EU ----------
           if [[ "${{ github.event.inputs.feature_rtl8188eu }}" == "true" ]]; then
-            echo "CONFIG_WLAN=y" >> $DEFCONFIG
-            echo "CONFIG_WIRELESS=y" >> $DEFCONFIG
-            echo "CONFIG_WEXT_CORE=y" >> $DEFCONFIG
-            echo "CONFIG_WEXT_PROC=y" >> $DEFCONFIG
-            echo "CONFIG_WEXT_PRIV=y" >> $DEFCONFIG
-            echo "CONFIG_CFG80211=y" >> $DEFCONFIG
-            echo "CONFIG_MAC80211=y" >> $DEFCONFIG
             echo "CONFIG_RTL8188EU=y" >> $DEFCONFIG
           fi
 
-          # ---------- LINDROID EVDI ----------
           echo "CONFIG_DRM_LINDROID_EVDI=y" >> $DEFCONFIG
 
-          # ---------- KernelSU ----------
+          # KernelSU 和 SUSFS 选项
           echo "CONFIG_KSU=y" >> $DEFCONFIG
           echo "CONFIG_KSU_KPROBES_HOOK=y" >> $DEFCONFIG
 
-          # ---------- SUSFS ----------
           if [[ "${{ env.SUSFS_ENABLE }}" == "true" ]]; then
             echo "CONFIG_KSU_SUSFS=y" >> $DEFCONFIG
             echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> $DEFCONFIG
@@ -258,37 +219,26 @@ jobs:
             echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> $DEFCONFIG
           fi
 
-          # ---------- 禁用 Btrfs ----------
-          echo "CONFIG_BTRFS_FS=n" >> $DEFCONFIG
-
-          # ---------- 本地版本 ----------
           echo "CONFIG_LOCALVERSION=\"${{ github.event.inputs.localversion }}\"" >> $DEFCONFIG
-
-          # ---------- 禁用模块版本校验 ----------
           echo "# CONFIG_MODVERSIONS is not set" >> $DEFCONFIG
 
-          # 生成初始 .config
+          # 生成 .config
           make O=out ARCH=arm64 raphael_defconfig
 
-          # 进入输出目录并调整配置
+          # 进入 out 目录用 scripts/config 预设新选项，避免交互
           cd out
-          # 禁用 Btrfs
-          ../scripts/config --file .config --disable BTRFS_FS
-          # 预设可能询问的新选项
+          # 设置可能触发 (NEW) 的选项
           ../scripts/config --file .config --set-val BLK_DEV_THROTTLING_LOW n
-          # 使用 yes 管道自动回答所有旧配置的新选项
-          yes "" | make O=$PWD ARCH=arm64 oldconfig
-          cd ..
+          ../scripts/config --file .config --set-val QTI_GVM n
+          if [[ "${{ github.event.inputs.feature_rtl8188eu }}" == "true" ]]; then
+            ../scripts/config --file .config --enable RTL8188EU
+          else
+            ../scripts/config --file .config --disable RTL8188EU
+          fi
 
-      - name: 集成 RTL8188EU 驱动
-        if: github.event.inputs.feature_rtl8188eu == 'true'
-        working-directory: kernel
-        run: |
-          git clone --depth=1 --branch master https://github.com/Geeeeeker/android_kernel_xiaomi_sdm845.git rtl8188eus-repo
-          cp -r rtl8188eus-repo/drivers/rtl8188eus drivers/
-          echo "obj-\$(CONFIG_RTL8188EU) += rtl8188eus/" >> drivers/Makefile
-          echo 'source "drivers/rtl8188eus/Kconfig"' >> drivers/Kconfig
-          rm -rf rtl8188eus-repo
+          # 完成配置更新，使用 olddefconfig 或 oldconfig 自动应答
+          make O=$PWD ARCH=arm64 olddefconfig 2>/dev/null || yes "" | make O=$PWD ARCH=arm64 oldconfig
+          cd ..
 
       - name: 编译内核
         working-directory: kernel
@@ -328,7 +278,7 @@ jobs:
           name: kernel-modules-${{ matrix.device }}
           path: ${{ env.MODULES_PACKAGE }}
 
-      - name: 编译 USB/IP 工具 (可选)
+      - name: 编译 USB/IP 工具
         if: github.event.inputs.feature_usbip == 'true'
         run: |
           sudo apt-get update
@@ -346,7 +296,7 @@ jobs:
           name: usbip-arm64-bundle
           path: usbip-arm64-bundle.tar.gz
 
-      - name: 下载管理器 APK (可选)
+      - name: 下载管理器 APK
         run: |
           mkdir -p apk-output
           wget -O apk-output/Magisk.apk "https://github.com/topjohnwu/Magisk/releases/download/v30.7/Magisk-v30.7.apk" || true
