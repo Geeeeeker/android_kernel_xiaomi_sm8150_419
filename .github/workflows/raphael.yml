@@ -122,87 +122,71 @@ jobs:
         run: |
           DEFCONFIG="arch/arm64/configs/raphael_defconfig"
 
-          # 先清除原有的 Btrfs 行，避免冲突
           sed -i '/CONFIG_BTRFS_FS/d' $DEFCONFIG
 
-          # 基础系统
           if [[ "${{ github.event.inputs.feature_base }}" == "true" ]]; then
             echo "CONFIG_SYSVIPC=y" >> $DEFCONFIG
             echo "CONFIG_EPOLL=y" >> $DEFCONFIG
             echo "CONFIG_TMPFS=y" >> $DEFCONFIG
           fi
 
-          # 禁用 LTO / werror
           sed -i 's/CONFIG_LTO=y/CONFIG_LTO=n/' $DEFCONFIG
           echo "CONFIG_LTO_NONE=y" >> $DEFCONFIG
           echo "CONFIG_CC_WERROR=n" >> $DEFCONFIG
 
-          # USB Gadget
           if [[ "${{ github.event.inputs.feature_usb_gadget }}" == "true" ]]; then
             echo "CONFIG_USB_GADGET=y" >> $DEFCONFIG
             echo "CONFIG_USB_CONFIGFS=y" >> $DEFCONFIG
           fi
 
-          # USB 串口
           if [[ "${{ github.event.inputs.feature_usb_serial }}" == "true" ]]; then
             echo "CONFIG_USB_SERIAL=y" >> $DEFCONFIG
             echo "CONFIG_USB_SERIAL_CH341=y" >> $DEFCONFIG
           fi
 
-          # USB/IP
           if [[ "${{ github.event.inputs.feature_usbip }}" == "true" ]]; then
             echo "CONFIG_USBIP_CORE=y" >> $DEFCONFIG
           fi
 
-          # LXC
           if [[ "${{ github.event.inputs.feature_lxc }}" == "true" ]]; then
             echo "CONFIG_NAMESPACES=y" >> $DEFCONFIG
             echo "CONFIG_CGROUPS=y" >> $DEFCONFIG
             echo "CONFIG_USER_NS=y" >> $DEFCONFIG
           fi
 
-          # Docker
           if [[ "${{ github.event.inputs.feature_docker }}" == "true" ]]; then
             echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
             echo "CONFIG_VLAN_8021Q=y" >> $DEFCONFIG
             echo "CONFIG_BRIDGE=y" >> $DEFCONFIG
           fi
 
-          # ZRAM
           if [[ "${{ github.event.inputs.feature_zram }}" == "true" ]]; then
             echo "CONFIG_ZRAM=y" >> $DEFCONFIG
           fi
 
-          # Android 容器
           if [[ "${{ github.event.inputs.feature_android_container }}" == "true" ]]; then
             echo "CONFIG_ASHMEM=y" >> $DEFCONFIG
             echo "CONFIG_ANDROID_BINDER_IPC=y" >> $DEFCONFIG
           fi
 
-          # KPROBES / KALLSYMS
           if [[ "${{ github.event.inputs.feature_ksu_symbols }}" == "true" ]]; then
             echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
             echo "CONFIG_KPROBES=y" >> $DEFCONFIG
           fi
 
-          # KVM
           if [[ "${{ github.event.inputs.feature_kvm }}" == "true" ]]; then
             echo "CONFIG_KVM=y" >> $DEFCONFIG
           fi
 
-          # RTL8188EU
           if [[ "${{ github.event.inputs.feature_rtl8188eu }}" == "true" ]]; then
             echo "CONFIG_RTL8188EU=y" >> $DEFCONFIG
           fi
 
-          # LINDROID EVDI
           echo "CONFIG_DRM_LINDROID_EVDI=y" >> $DEFCONFIG
 
-          # KernelSU 基础
           echo "CONFIG_KSU=y" >> $DEFCONFIG
           echo "CONFIG_KSU_KPROBES_HOOK=y" >> $DEFCONFIG
 
-          # SUSFS 选项
           if [[ "${{ env.SUSFS_ENABLE }}" == "true" ]]; then
             echo "CONFIG_KSU_SUSFS=y" >> $DEFCONFIG
             echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> $DEFCONFIG
@@ -215,20 +199,16 @@ jobs:
             echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> $DEFCONFIG
           fi
 
-          # 明确禁用 Btrfs（再次追加，确保存在）
           echo "CONFIG_BTRFS_FS=n" >> $DEFCONFIG
-
-          # 本地版本
           echo "CONFIG_LOCALVERSION=\"${{ github.event.inputs.localversion }}\"" >> $DEFCONFIG
-
-          # 禁用模块版本校验
           echo "# CONFIG_MODVERSIONS is not set" >> $DEFCONFIG
 
-          # 生成初始 .config 并强制禁用 Btrfs
           make O=out ARCH=arm64 raphael_defconfig
+
           cd out
           ../scripts/config --file .config --disable BTRFS_FS
-          make O=$PWD ARCH=arm64 olddefconfig
+          ../scripts/config --file .config --set-val BLK_DEV_THROTTLING_LOW n
+          make O=$PWD ARCH=arm64 olddefconfig 2>/dev/null || yes "" | make O=$PWD ARCH=arm64 oldconfig
           cd ..
 
       - name: 集成 RTL8188EU 驱动
