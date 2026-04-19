@@ -110,7 +110,15 @@ jobs:
         run: |
           curl -L -o fs/btrfs/zstd.c https://raw.githubusercontent.com/torvalds/linux/v5.15/fs/btrfs/zstd.c
           echo "zstd.c replaced with Linux 5.15 version."
-
+      - name: 修复 zstd.c API (sed 方式)
+        working-directory: kernel
+        run: |
+          # 替换 ZSTD_initCStream 调用
+          sed -i '/ZSTD_initCStream(params, len, workspace->mem,/ {
+              s/ZSTD_initCStream(params, len, workspace->mem, workspace->size)/ZSTD_createCCtx()/;
+              n; s/if (!stream) {/if (!stream) { ZSTD_CCtx_setParameter(stream, ZSTD_c_compressionLevel, ZSTD_BTRFS_DEFAULT_LEVEL); ZSTD_CCtx_setParameter(stream, ZSTD_c_windowLog, params.cParams.windowLog); ZSTD_CCtx_setPledgedSrcSize(stream, len); }/
+          }' fs/btrfs/zstd.c
+          # 实际更简单的方法：直接使用 patch 是首选，sed 仅作备选。
       - name: 下载 Clang (Android 16)
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
