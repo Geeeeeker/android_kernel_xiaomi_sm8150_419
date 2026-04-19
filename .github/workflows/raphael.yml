@@ -137,7 +137,10 @@ jobs:
         working-directory: kernel
         run: |
           cd drivers/kernelsu
-          cp ../../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch . || true
+          # 复制补丁并调整路径（补丁假定在 kernel/ 目录下，我们目前在 drivers/kernelsu）
+          cp ../../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch .
+          sed -i 's|a/kernel/|a/|g' 10_enable_susfs_for_ksu.patch
+          sed -i 's|b/kernel/|b/|g' 10_enable_susfs_for_ksu.patch
           patch -p1 < 10_enable_susfs_for_ksu.patch || true
           cd -
 
@@ -338,6 +341,9 @@ jobs:
             echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> $DEFCONFIG
             echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> $DEFCONFIG
           fi
+
+          # 禁用 Btrfs（避免 timespec 编译错误）
+          echo "CONFIG_BTRFS_FS=n" >> $DEFCONFIG
 
           # 本地版本
           LOCALVER="${{ github.event.inputs.localversion }}"
