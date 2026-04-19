@@ -66,7 +66,6 @@ env:
   AOSP_TOOLCHAIN_BRANCH: android16-release
   AOSP_CLANG_VERSION: r547379
   ANDROID_VERSION: "16"
-  # SUSFS 已内置，无需外部源码
   SUSFS_ENABLE: "true"
 
 permissions:
@@ -118,10 +117,13 @@ jobs:
           restore-keys: kernel-${{ matrix.device }}
           max-size: 5G
 
-      - name: 配置内核参数
+      - name: 配置内核参数并强制禁用 Btrfs
         working-directory: kernel
         run: |
           DEFCONFIG="arch/arm64/configs/raphael_defconfig"
+
+          # 先清除原有的 Btrfs 行，避免冲突
+          sed -i '/CONFIG_BTRFS_FS/d' $DEFCONFIG
 
           # 基础系统
           if [[ "${{ github.event.inputs.feature_base }}" == "true" ]]; then
@@ -196,11 +198,11 @@ jobs:
           # LINDROID EVDI
           echo "CONFIG_DRM_LINDROID_EVDI=y" >> $DEFCONFIG
 
-          # KernelSU 基础 (模块形式)
+          # KernelSU 基础
           echo "CONFIG_KSU=y" >> $DEFCONFIG
           echo "CONFIG_KSU_KPROBES_HOOK=y" >> $DEFCONFIG
 
-          # SUSFS 选项 (源码已内置，直接启用)
+          # SUSFS 选项
           if [[ "${{ env.SUSFS_ENABLE }}" == "true" ]]; then
             echo "CONFIG_KSU_SUSFS=y" >> $DEFCONFIG
             echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> $DEFCONFIG
@@ -213,7 +215,7 @@ jobs:
             echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> $DEFCONFIG
           fi
 
-          # 禁用 Btrfs (避免类型错误)
+          # 明确禁用 Btrfs（再次追加，确保存在）
           echo "CONFIG_BTRFS_FS=n" >> $DEFCONFIG
 
           # 本地版本
@@ -221,6 +223,13 @@ jobs:
 
           # 禁用模块版本校验
           echo "# CONFIG_MODVERSIONS is not set" >> $DEFCONFIG
+
+          # 生成初始 .config 并强制禁用 Btrfs
+          make O=out ARCH=arm64 raphael_defconfig
+          cd out
+          ../scripts/config --file .config --disable BTRFS_FS
+          make O=$PWD ARCH=arm64 olddefconfig
+          cd ..
 
       - name: 集成 RTL8188EU 驱动
         if: github.event.inputs.feature_rtl8188eu == 'true'
@@ -257,7 +266,7 @@ jobs:
             LLVM_IAS=1 \
             O=out \
             KCFLAGS="-Wno-unknown-warning-option -Wno-implicit-function-declaration -Wno-error" \
-            raphael_defconfig all
+            all
 
       - name: 收集内核模块
         run: |
