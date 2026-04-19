@@ -105,13 +105,11 @@ jobs:
           # 删除 iversion.h 包含行（所需函数已由 fs.h 提供）
           sed -i '/#include <linux\/iversion.h>/d' fs/btrfs/inode.c fs/btrfs/file.c
           echo "Patched btrfs files successfully."
-
-      - name: 缓存 Clang
-        id: cache-clang
-        uses: actions/cache@v4
-        with:
-          path: clang
-          key: clang-${{ env.AOSP_TOOLCHAIN_BRANCH }}-${{ env.AOSP_CLANG_VERSION }}
+      - name: 替换 btrfs zstd.c 为兼容版本
+        working-directory: kernel
+        run: |
+          curl -L -o fs/btrfs/zstd.c https://raw.githubusercontent.com/torvalds/linux/v5.15/fs/btrfs/zstd.c
+          # 注意：请将 URL 替换为与你内核版本匹配的 zstd.c 源
 
       - name: 下载 Clang (Android 16)
         if: steps.cache-clang.outputs.cache-hit != 'true'
