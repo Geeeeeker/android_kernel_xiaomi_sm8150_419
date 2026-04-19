@@ -97,22 +97,14 @@ jobs:
           path: kernel
 
       # ========== 新增：替换 Btrfs 相关文件 ==========
-      - name: 替换 Btrfs 文件 (inode.c 与 file.c)
+      - name: 修复 btrfs 编译错误 (timespec64 + 移除 iversion.h)
         working-directory: kernel
         run: |
-          mkdir -p fs/btrfs
-          curl -L -o fs/btrfs/inode.c https://raw.githubusercontent.com/Geeeeeker/android_kernel_xiaomi_sm8150_419/lineage-23.0_raphael/fs/btrfs/inode.c
-          curl -L -o fs/btrfs/file.c https://raw.githubusercontent.com/Geeeeeker/android_kernel_xiaomi_sm8150_419/lineage-23.0_raphael/fs/btrfs/file.c
-          echo "Btrfs source files replaced."
-      
-      - name: 修复 btrfs 编译错误
-        working-directory: kernel
-        run: |
-          # 1. 将 timespec 改为 timespec64
+          # 修正 timespec → timespec64
           sed -i 's/struct timespec now = current_time/struct timespec64 now = current_time/g' fs/btrfs/file.c fs/btrfs/inode.c
-          # 2. 移除对 iversion.h 的包含（因为内核已提供定义，且包含它会导致类型冲突）
+          # 删除 iversion.h 包含行（所需函数已由 fs.h 提供）
           sed -i '/#include <linux\/iversion.h>/d' fs/btrfs/inode.c fs/btrfs/file.c
-          echo "Patched btrfs files."
+          echo "Patched btrfs files successfully."
 
       - name: 缓存 Clang
         id: cache-clang
