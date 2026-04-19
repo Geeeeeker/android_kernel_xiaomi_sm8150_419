@@ -96,29 +96,6 @@ jobs:
           ref: 16.0-SUSFS
           path: kernel
 
-      # ========== 新增：替换 Btrfs 相关文件 ==========
-      - name: 修复 btrfs 编译错误 (timespec64 + 移除 iversion.h)
-        working-directory: kernel
-        run: |
-          # 修正 timespec → timespec64
-          sed -i 's/struct timespec now = current_time/struct timespec64 now = current_time/g' fs/btrfs/file.c fs/btrfs/inode.c
-          # 删除 iversion.h 包含行（所需函数已由 fs.h 提供）
-          sed -i '/#include <linux\/iversion.h>/d' fs/btrfs/inode.c fs/btrfs/file.c
-          echo "Patched btrfs files successfully."
-      - name: 替换 zstd.c (兼容新版 ZSTD API)
-        working-directory: kernel
-        run: |
-          curl -L -o fs/btrfs/zstd.c https://raw.githubusercontent.com/torvalds/linux/v5.15/fs/btrfs/zstd.c
-          echo "zstd.c replaced with Linux 5.15 version."
-      - name: 修复 zstd.c API (sed 方式)
-        working-directory: kernel
-        run: |
-          # 替换 ZSTD_initCStream 调用
-          sed -i '/ZSTD_initCStream(params, len, workspace->mem,/ {
-              s/ZSTD_initCStream(params, len, workspace->mem, workspace->size)/ZSTD_createCCtx()/;
-              n; s/if (!stream) {/if (!stream) { ZSTD_CCtx_setParameter(stream, ZSTD_c_compressionLevel, ZSTD_BTRFS_DEFAULT_LEVEL); ZSTD_CCtx_setParameter(stream, ZSTD_c_windowLog, params.cParams.windowLog); ZSTD_CCtx_setPledgedSrcSize(stream, len); }/
-          }' fs/btrfs/zstd.c
-          # 实际更简单的方法：直接使用 patch 是首选，sed 仅作备选。
       - name: 下载 Clang (Android 16)
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
@@ -256,22 +233,19 @@ jobs:
           make O=$PWD ARCH=arm64 olddefconfig 2>/dev/null || yes "" | make O=$PWD ARCH=arm64 oldconfig
           cd ..
 
-      - name: 编译内核
+      - name: 编译内核 (ccache 加速)
         working-directory: kernel
         run: |
-          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+          export CLANG_PATH=$GITHUB_WORKSPACE/clang/bin
+          export PATH=${CLANG_PATH}:${PATH}
           export KBUILD_BUILD_USER=${{ github.repository_owner }}
           export KBUILD_BUILD_HOST=github-runner
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-          make -j$(nproc --all) \
-            CC="ccache clang" \
-            ARCH=arm64 \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            O=out \
-            KCFLAGS="-Wno-unknown-warning-option -Wno-implicit-function-declaration -Wno-error" \
-            all
+          make LLVM=1 LLVM_IAS=1 CC="ccache clang" O=out raphael_defconfig
+          make LLVM=1 LLVM_IAS=1 CC="ccache clang" -j$(nproc) O=out all
+          ccache --show-stats
+          ccache --show-config
 
       - name: 收集内核模块
         run: |
