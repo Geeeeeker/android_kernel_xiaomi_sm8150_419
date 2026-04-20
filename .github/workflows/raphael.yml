@@ -95,7 +95,18 @@ jobs:
           repository: SOVIET-ANDROID/kernel_xiaomi_raphael
           ref: 16.0-SUSFS
           path: kernel
-
+      - name: 修复 fair.c 缺失的 se_update_runnable
+        working-directory: kernel
+        run: |
+          sed -i '/#include "walt.h"/a \
+          \
+          static inline void se_update_runnable(struct sched_entity *se) \
+          { \
+              struct cfs_rq *cfs_rq = cfs_rq_of(se); \
+              if (!se->on_rq) \
+                  return; \
+              update_load_avg(cfs_rq, se, 0); \
+          }' kernel/sched/fair.c
       # ========== 替换 Btrfs 相关文件 ==========
       - name: 禁用 Btrfs 支持
         working-directory: kernel
