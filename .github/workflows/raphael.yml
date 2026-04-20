@@ -419,7 +419,7 @@ jobs:
           mv Image.gz-dtb out/kernel
           eval "./mkbootimg.py $mkbootimg_args -o boot-lineage-${{ matrix.device }}.img"
           echo "BOOT_IMG_NAME=boot-lineage-${{ matrix.device }}.img" >> $GITHUB_ENV
-      
+
       - name: 上传 AnyKernel3
         uses: actions/upload-artifact@v4
         with:
