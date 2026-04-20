@@ -474,7 +474,6 @@ jobs:
           if [ -f kernel-modules-raphael.tar.gz ]; then
             mv kernel-modules-raphael.tar.gz "kernel-modules-${DEVICE}-${ANDROID_VER}.tar.gz"
           fi
-
       - name: 获取时间戳
         id: time
         run: echo "time=$(TZ='Asia/Shanghai' date -u +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
