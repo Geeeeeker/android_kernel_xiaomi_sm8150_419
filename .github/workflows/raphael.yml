@@ -60,7 +60,7 @@ on:
       localversion:
         description: '本地版本'
         type: string
-        default: '-SOVIET-STAR-'
+        default: '-Geeeeeker-perf'
 
 env:
   AOSP_TOOLCHAIN_BRANCH: android16-release
