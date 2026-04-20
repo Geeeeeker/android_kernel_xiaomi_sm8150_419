@@ -373,7 +373,62 @@ jobs:
             ../scripts/config --file .config --disable RTL8188EU
           fi
           
+          # 第一次 olddefconfig
           make O=$PWD ARCH=arm64 olddefconfig 2>/dev/null || yes "" | make O=$PWD ARCH=arm64 oldconfig
+
+          # ========== 强制启用被依赖问题关闭的关键选项 ==========
+          # 命名空间
+          ../scripts/config --file .config --enable NAMESPACES
+          ../scripts/config --file .config --enable PID_NS
+          ../scripts/config --file .config --enable IPC_NS
+          ../scripts/config --file .config --enable UTS_NS
+          ../scripts/config --file .config --enable NET_NS
+          ../scripts/config --file .config --enable USER_NS
+          # 基础系统
+          ../scripts/config --file .config --enable SYSVIPC
+          ../scripts/config --file .config --enable SYSVIPC_SYSCTL
+          ../scripts/config --file .config --enable SYSVIPC_COMPAT
+          ../scripts/config --file .config --enable POSIX_MQUEUE
+          ../scripts/config --file .config --enable FHANDLE
+          # cgroup 相关
+          ../scripts/config --file .config --enable CGROUPS
+          ../scripts/config --file .config --enable CGROUP_DEVICE
+          ../scripts/config --file .config --enable CGROUP_FREEZER
+          ../scripts/config --file .config --enable CGROUP_PIDS
+          ../scripts/config --file .config --enable CGROUP_PERF
+          ../scripts/config --file .config --enable CGROUP_HUGETLB
+          ../scripts/config --file .config --enable CPUSETS
+          ../scripts/config --file .config --enable MEMCG
+          ../scripts/config --file .config --enable MEMCG_SWAP
+          ../scripts/config --file .config --enable MEMCG_SWAP_ENABLED
+          ../scripts/config --file .config --enable BLK_CGROUP
+          ../scripts/config --file .config --enable BLK_DEV_THROTTLING
+          ../scripts/config --file .config --enable NET_CLS_CGROUP
+          ../scripts/config --file .config --enable CGROUP_NET_PRIO
+          ../scripts/config --file .config --enable FAIR_GROUP_SCHED
+          ../scripts/config --file .config --enable CFS_BANDWIDTH
+          # 网络过滤
+          ../scripts/config --file .config --enable BRIDGE_NETFILTER
+          ../scripts/config --file .config --enable NETFILTER_XT_MATCH_ADDRTYPE
+          ../scripts/config --file .config --enable NETFILTER_XT_MATCH_IPVS
+          ../scripts/config --file .config --enable IP_VS
+          ../scripts/config --file .config --enable IP_VS_NFCT
+          ../scripts/config --file .config --enable IP_VS_PROTO_TCP
+          ../scripts/config --file .config --enable IP_VS_PROTO_UDP
+          ../scripts/config --file .config --enable IP_VS_RR
+          # 安全
+          ../scripts/config --file .config --enable SECURITY_APPARMOR
+          # 其他
+          ../scripts/config --file .config --enable IOSCHED_CFQ
+          ../scripts/config --file .config --enable CFQ_GROUP_IOSCHED
+          ../scripts/config --file .config --enable OVERLAY_FS
+          ../scripts/config --file .config --enable VETH
+          ../scripts/config --file .config --enable BRIDGE
+          ../scripts/config --file .config --enable MACVLAN
+          ../scripts/config --file .config --enable VXLAN
+
+          # 再次运行 olddefconfig 以解决可能的新依赖（但不会关闭我们刚启用的项）
+          make O=$PWD ARCH=arm64 olddefconfig
           cd ..
 
       - name: 编译内核
