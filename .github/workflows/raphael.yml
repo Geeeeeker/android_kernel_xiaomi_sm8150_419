@@ -143,75 +143,202 @@ jobs:
         working-directory: kernel
         run: |
           DEFCONFIG="arch/arm64/configs/raphael_defconfig"
-
-          # 基础系统
+          
+          # ========== 基础系统配置（含原有及新增） ==========
           if [[ "${{ github.event.inputs.feature_base }}" == "true" ]]; then
+            # 原有基础项
             echo "CONFIG_SYSVIPC=y" >> $DEFCONFIG
             echo "CONFIG_EPOLL=y" >> $DEFCONFIG
             echo "CONFIG_TMPFS=y" >> $DEFCONFIG
+            # 新增 SYSVIPC 子项
+            echo "CONFIG_SYSVIPC_SYSCTL=y" >> $DEFCONFIG
+            echo "CONFIG_SYSVIPC_COMPAT=y" >> $DEFCONFIG
+            # 新增基础文件/事件接口
+            echo "CONFIG_EVENTFD=y" >> $DEFCONFIG
+            echo "CONFIG_SIGNALFD=y" >> $DEFCONFIG
+            echo "CONFIG_INOTIFY_USER=y" >> $DEFCONFIG
+            # TMPFS 必需依赖
+            echo "CONFIG_SHMEM=y" >> $DEFCONFIG
+            echo "CONFIG_TMPFS_POSIX_ACL=y" >> $DEFCONFIG
+            echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG
           fi
-
+          
+          # 基础编译选项（无条件）
           sed -i 's/CONFIG_LTO=y/CONFIG_LTO=n/' $DEFCONFIG
           echo "CONFIG_LTO_NONE=y" >> $DEFCONFIG
           echo "CONFIG_CC_WERROR=n" >> $DEFCONFIG
-
+          echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DEFCONFIG
+          echo "CONFIG_BPF_JIT=y" >> $DEFCONFIG
+          echo "CONFIG_BPF_SYSCALL=y" >> $DEFCONFIG
+          echo "# CONFIG_BPF_JIT_ALWAYS_ON is not set" >> $DEFCONFIG
+          # Backlight 支持（解决 undefined symbol）
+          echo "CONFIG_BACKLIGHT_CLASS_DEVICE=y" >> $DEFCONFIG
+          echo "CONFIG_BACKLIGHT_QCOM=y" >> $DEFCONFIG
+          # 禁用模块版本控制（USB/IP 等需要）
+          echo "# CONFIG_MODVERSIONS is not set" >> $DEFCONFIG
+          
+          # ========== USB Gadget（大容量存储等） ==========
           if [[ "${{ github.event.inputs.feature_usb_gadget }}" == "true" ]]; then
             echo "CONFIG_USB_GADGET=y" >> $DEFCONFIG
             echo "CONFIG_USB_CONFIGFS=y" >> $DEFCONFIG
+            echo "CONFIG_USB_CONFIGFS_MASS_STORAGE=y" >> $DEFCONFIG
           fi
-
+          
+          # ========== USB 转串口（整合四大金刚） ==========
           if [[ "${{ github.event.inputs.feature_usb_serial }}" == "true" ]]; then
             echo "CONFIG_USB_SERIAL=y" >> $DEFCONFIG
+            echo "CONFIG_USB_SERIAL_CONSOLE=y" >> $DEFCONFIG
+            echo "CONFIG_USB_SERIAL_GENERIC=y" >> $DEFCONFIG
             echo "CONFIG_USB_SERIAL_CH341=y" >> $DEFCONFIG
+            echo "CONFIG_USB_SERIAL_FTDI_SIO=y" >> $DEFCONFIG
+            echo "CONFIG_USB_SERIAL_CP210X=y" >> $DEFCONFIG
+            echo "CONFIG_USB_SERIAL_PL2303=y" >> $DEFCONFIG
           fi
-
+          
+          # ========== USB/IP 支持 ==========
           if [[ "${{ github.event.inputs.feature_usbip }}" == "true" ]]; then
             echo "CONFIG_USBIP_CORE=y" >> $DEFCONFIG
+            echo "CONFIG_USBIP_VHCI_HCD=y" >> $DEFCONFIG
+            echo "CONFIG_USBIP_HOST=y" >> $DEFCONFIG
           fi
-
+          
+          # ========== LXC 容器支持（大幅增强） ==========
           if [[ "${{ github.event.inputs.feature_lxc }}" == "true" ]]; then
+            # 命名空间总开关
             echo "CONFIG_NAMESPACES=y" >> $DEFCONFIG
             echo "CONFIG_CGROUPS=y" >> $DEFCONFIG
+            # 各类命名空间
             echo "CONFIG_USER_NS=y" >> $DEFCONFIG
+            echo "CONFIG_PID_NS=y" >> $DEFCONFIG
+            echo "CONFIG_IPC_NS=y" >> $DEFCONFIG
+            echo "CONFIG_UTS_NS=y" >> $DEFCONFIG
+            echo "CONFIG_NET_NS=y" >> $DEFCONFIG
+            # cgroup 控制器
+            echo "CONFIG_CGROUP_DEVICE=y" >> $DEFCONFIG
+            echo "CONFIG_CGROUP_FREEZER=y" >> $DEFCONFIG
+            echo "CONFIG_CGROUP_PIDS=y" >> $DEFCONFIG
+            echo "CONFIG_CGROUP_PERF=y" >> $DEFCONFIG
+            echo "CONFIG_CPUSETS=y" >> $DEFCONFIG
+            echo "CONFIG_PROC_PID_CPUSET=y" >> $DEFCONFIG
+            echo "CONFIG_MEMCG=y" >> $DEFCONFIG
+            echo "CONFIG_MEMCG_SWAP=y" >> $DEFCONFIG
+            echo "CONFIG_MEMCG_SWAP_ENABLED=y" >> $DEFCONFIG
+            echo "CONFIG_PAGE_COUNTER=y" >> $DEFCONFIG
+            echo "CONFIG_BLK_CGROUP=y" >> $DEFCONFIG
+            echo "CONFIG_CGROUP_WRITEBACK=y" >> $DEFCONFIG
+            # 其他 LXC 所需
+            echo "CONFIG_POSIX_MQUEUE=y" >> $DEFCONFIG
+            echo "CONFIG_DEVPTS_MULTIPLE_INSTANCES=y" >> $DEFCONFIG
+            echo "CONFIG_PROC_CHILDREN=y" >> $DEFCONFIG
+            echo "CONFIG_CHECKPOINT_RESTORE=y" >> $DEFCONFIG
           fi
-
+          
+          # ========== Docker 支持（整合 IPv6 NAT / 诊断等） ==========
           if [[ "${{ github.event.inputs.feature_docker }}" == "true" ]]; then
+            # 存储驱动
             echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
-            echo "CONFIG_VLAN_8021Q=y" >> $DEFCONFIG
+            echo "CONFIG_AUFS_FS=y" >> $DEFCONFIG
+            # 网络基础
             echo "CONFIG_BRIDGE=y" >> $DEFCONFIG
-            echo "CONFIG_DOCKER=y" >> $DEFCONFIG
+            echo "CONFIG_VLAN_8021Q=y" >> $DEFCONFIG
+            echo "CONFIG_VXLAN=y" >> $DEFCONFIG
+            echo "CONFIG_MACVLAN=y" >> $DEFCONFIG
+            echo "CONFIG_VETH=y" >> $DEFCONFIG
+            echo "CONFIG_NET_L3_MASTER_DEV=y" >> $DEFCONFIG
+            # 网络过滤与 NAT（含 IPv6）
+            echo "CONFIG_BRIDGE_NETFILTER=y" >> $DEFCONFIG
+            echo "CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y" >> $DEFCONFIG
+            echo "CONFIG_NETFILTER_XT_MATCH_IPVS=y" >> $DEFCONFIG
+            echo "CONFIG_NETFILTER_XT_MARK=y" >> $DEFCONFIG
+            echo "CONFIG_NETFILTER_XT_TARGET_CHECKSUM=y" >> $DEFCONFIG
+            echo "CONFIG_NF_NAT=y" >> $DEFCONFIG
+            echo "CONFIG_NF_NAT_NEEDED=y" >> $DEFCONFIG
+            echo "CONFIG_NF_NAT_IPV4=y" >> $DEFCONFIG
+            echo "CONFIG_NF_NAT_IPV6=y" >> $DEFCONFIG
+            echo "CONFIG_IP6_NF_TARGET_MASQUERADE=y" >> $DEFCONFIG
+            echo "CONFIG_NF_NAT_FTP=y" >> $DEFCONFIG
+            echo "CONFIG_NF_NAT_TFTP=y" >> $DEFCONFIG
+            # IPVS 负载均衡
+            echo "CONFIG_IP_VS=y" >> $DEFCONFIG
+            echo "CONFIG_IP_VS_NFCT=y" >> $DEFCONFIG
+            echo "CONFIG_IP_VS_PROTO_TCP=y" >> $DEFCONFIG
+            echo "CONFIG_IP_VS_PROTO_UDP=y" >> $DEFCONFIG
+            echo "CONFIG_IP_VS_RR=y" >> $DEFCONFIG
+            # 诊断接口
+            echo "CONFIG_UNIX_DIAG=y" >> $DEFCONFIG
+            echo "CONFIG_PACKET_DIAG=y" >> $DEFCONFIG
+            echo "CONFIG_NETLINK_DIAG=y" >> $DEFCONFIG
+            # 其他 Docker 依赖
+            echo "CONFIG_KEYS=y" >> $DEFCONFIG
+            echo "CONFIG_SECCOMP_FILTER=y" >> $DEFCONFIG
+            echo "CONFIG_IOSCHED_CFQ=y" >> $DEFCONFIG
+            echo "CONFIG_FAIR_GROUP_SCHED=y" >> $DEFCONFIG
+            echo "CONFIG_DM_THIN_PROVISIONING=y" >> $DEFCONFIG
+            echo "CONFIG_BPF_CGROUP_DEVICE=y" >> $DEFCONFIG
+            echo "CONFIG_FHANDLE=y" >> $DEFCONFIG
+            # 加密与 XFRM（VPN/隧道）
+            echo "CONFIG_CRYPTO=y" >> $DEFCONFIG
+            echo "CONFIG_CRYPTO_AEAD=y" >> $DEFCONFIG
+            echo "CONFIG_CRYPTO_SEQIV=y" >> $DEFCONFIG
+            echo "CONFIG_CRYPTO_GHASH=y" >> $DEFCONFIG
+            echo "CONFIG_XFRM=y" >> $DEFCONFIG
+            echo "CONFIG_XFRM_ALGO=y" >> $DEFCONFIG
+            echo "CONFIG_INET_XFRM_MODE_TRANSPORT=y" >> $DEFCONFIG
+            # 禁用 Android 偏执网络限制
             sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' $DEFCONFIG
             echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> $DEFCONFIG
           fi
-
+          
+          # ========== ZRAM 支持（修复引号并补全） ==========
           if [[ "${{ github.event.inputs.feature_zram }}" == "true" ]]; then
             echo "CONFIG_ZRAM=y" >> $DEFCONFIG
+            echo "CONFIG_ZRAM_DEF_COMP_ZSTD=y" >> $DEFCONFIG
+            echo "CONFIG_CRYPTO_ZSTD=y" >> $DEFCONFIG
+            echo "CONFIG_CRYPTO_AEAD=y" >> $DEFCONFIG
+            echo "CONFIG_CRYPTO_SEQIV=y" >> $DEFCONFIG
           fi
-
+          
+          # ========== Android 容器支持 ==========
           if [[ "${{ github.event.inputs.feature_android_container }}" == "true" ]]; then
             echo "CONFIG_ASHMEM=y" >> $DEFCONFIG
             echo "CONFIG_ANDROID_BINDER_IPC=y" >> $DEFCONFIG
           fi
-
+          
+          # ========== KernelSU 符号与探测支持 ==========
           if [[ "${{ github.event.inputs.feature_ksu_symbols }}" == "true" ]]; then
+            echo "CONFIG_KALLSYMS=y" >> $DEFCONFIG
             echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
             echo "CONFIG_KPROBES=y" >> $DEFCONFIG
+            echo "CONFIG_KRETPROBES=y" >> $DEFCONFIG
+            echo "CONFIG_HAVE_KPROBES=y" >> $DEFCONFIG
+            echo "CONFIG_KPROBE_EVENTS=y" >> $DEFCONFIG
+            echo "CONFIG_HAVE_SYSCALL_TRACEPOINTS=y" >> $DEFCONFIG
           fi
-
+          
+          # ========== KVM 虚拟化支持（已补全） ==========
           if [[ "${{ github.event.inputs.feature_kvm }}" == "true" ]]; then
             echo "CONFIG_KVM=y" >> $DEFCONFIG
+            echo "CONFIG_KVM_ARM_HOST=y" >> $DEFCONFIG
+            echo "CONFIG_KVM_ARM_PMU=y" >> $DEFCONFIG
+            echo "CONFIG_VIRTUALIZATION=y" >> $DEFCONFIG
           fi
-
+          
+          # ========== RTL8188EU 无线驱动 ==========
           if [[ "${{ github.event.inputs.feature_rtl8188eu }}" == "true" ]]; then
             echo "CONFIG_RTL8188EU=y" >> $DEFCONFIG
           fi
-
+          
+          # 显示驱动（无条件）
           echo "CONFIG_DRM_LINDROID_EVDI=y" >> $DEFCONFIG
-
-          # KernelSU 和 SUSFS 选项
+          
+          # ========== KernelSU 核心配置 ==========
           echo "CONFIG_KSU=y" >> $DEFCONFIG
           echo "CONFIG_KSU_KPROBES_HOOK=y" >> $DEFCONFIG
-
+          echo "CONFIG_KSU_NONE_HOOK=y" >> $DEFCONFIG
+          echo "CONFIG_KSU_MANUAL_SU=y" >> $DEFCONFIG
+          echo "CONFIG_KPM=y" >> $DEFCONFIG
+          
+          # ========== SUSFS 增强隐藏 ==========
           if [[ "${{ env.SUSFS_ENABLE }}" == "true" ]]; then
             echo "CONFIG_KSU_SUSFS=y" >> $DEFCONFIG
             echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> $DEFCONFIG
@@ -222,17 +349,21 @@ jobs:
             echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" >> $DEFCONFIG
             echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> $DEFCONFIG
             echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> $DEFCONFIG
+            # 进阶反检测选项
+            echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> $DEFCONFIG
+            echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> $DEFCONFIG
+            echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> $DEFCONFIG
+            echo "CONFIG_KSU_SUSFS_SUS_MAP=y" >> $DEFCONFIG
           fi
-
-          # 删除原有的 CONFIG_LOCALVERSION 配置，再添加新的
+          
+          # 删除原有 LOCALVERSION 并设置新值
           sed -i '/^CONFIG_LOCALVERSION/d' $DEFCONFIG
           echo "CONFIG_LOCALVERSION=\"${{ github.event.inputs.localversion }}\"" >> $DEFCONFIG
-          echo "# CONFIG_MODVERSIONS is not set" >> $DEFCONFIG
-
+          
           # 生成 .config
           make O=out ARCH=arm64 raphael_defconfig
-
-          # 进入 out 目录用 scripts/config 预设新选项，避免交互
+          
+          # 进入 out 目录调整选项
           cd out
           ../scripts/config --file .config --set-val BLK_DEV_THROTTLING_LOW n
           ../scripts/config --file .config --set-val QTI_GVM n
@@ -241,7 +372,7 @@ jobs:
           else
             ../scripts/config --file .config --disable RTL8188EU
           fi
-
+          
           make O=$PWD ARCH=arm64 olddefconfig 2>/dev/null || yes "" | make O=$PWD ARCH=arm64 oldconfig
           cd ..
 
