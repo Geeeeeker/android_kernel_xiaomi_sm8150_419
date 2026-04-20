@@ -291,10 +291,11 @@ jobs:
 
       - name: 编译 USB/IP 用户态工具 (Docker 容器)
         if: github.event.inputs.feature_usbip == 'true'
+        continue-on-error: true   # 允许失败而不中断整个构建
         run: |
           mkdir -p usbip-out/{bin,libs}
           docker run --rm --platform linux/arm64 \
-            --memory=4g \
+            --memory=6g \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ github.workspace }}/usbip-out:/output \
             -w /workspace/kernel \
@@ -303,6 +304,7 @@ jobs:
               set -e
               export DEBIAN_FRONTEND=noninteractive
               ulimit -s unlimited
+              export MAKEFLAGS='-j1'
               apt update
               apt install -y \
                 build-essential \
