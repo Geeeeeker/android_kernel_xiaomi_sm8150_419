@@ -1,0 +1,484 @@
+name: 编译内核 (内置 SukiSU + SUSFS + Docker)
+
+on:
+  push:
+    branches:
+      - dev/*
+      - stable/*
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      feature_base:
+        description: '基础系统配置'
+        type: boolean
+        default: true
+      feature_usb_gadget:
+        description: 'USB Gadget'
+        type: boolean
+        default: true
+      feature_usb_serial:
+        description: 'USB 转串口'
+        type: boolean
+        default: true
+      feature_usbip:
+        description: 'USB/IP'
+        type: boolean
+        default: true
+      feature_lxc:
+        description: 'LXC 容器'
+        type: boolean
+        default: true
+      feature_docker:
+        description: 'Docker 支持'
+        type: boolean
+        default: true
+      feature_uvc:
+        description: 'UVC 摄像头'
+        type: boolean
+        default: false
+      feature_zram:
+        description: 'ZRAM'
+        type: boolean
+        default: true
+      feature_android_container:
+        description: 'Android 容器'
+        type: boolean
+        default: true
+      feature_ksu_symbols:
+        description: 'KernelSU 符号'
+        type: boolean
+        default: true
+      feature_kvm:
+        description: 'KVM'
+        type: boolean
+        default: false
+      feature_rtl8188eu:
+        description: 'RTL8188EU 无线'
+        type: boolean
+        default: false
+      localversion:
+        description: '本地版本'
+        type: string
+        default: '-SukiSU-perf'
+
+env:
+  AOSP_TOOLCHAIN_BRANCH: android16-release
+  AOSP_CLANG_VERSION: r547379
+  ANDROID_VERSION: "16"
+  SUSFS_ENABLE: "true"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 编译内核
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        device:
+          - dipper
+    outputs:
+      device: ${{ matrix.device }}
+    steps:
+      - name: 安装软件包
+        env:
+          PACKAGES: ccache binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi gcc-arm-linux-gnueabi p7zip-full
+        run: |
+          sudo apt update > /dev/null
+          sudo apt install -y ${{ env.PACKAGES }} > /dev/null
+
+      - name: 同步内核源码 (内置 SukiSU 和 SUSFS)
+        uses: actions/checkout@v4
+        with:
+          repository: duckyduckG/android_kernel_xiaomi_sdm845_419
+          ref: perf-SukiSU
+          path: kernel
+
+      - name: 下载 Clang (Android 16)
+        if: steps.cache-clang.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p clang &&
+          curl -LSs "https://github.com/Geeeeeker/boot/releases/download/clang-prebuilts-20260319-031015/clang-r547379.tar.gz" |
+          tar xz -C clang
+
+      - name: 缓存 ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: kernel-${{ matrix.device }}
+          restore-keys: kernel-${{ matrix.device }}
+          max-size: 5G
+
+      - name: 集成 RTL8188EU 驱动
+        if: github.event.inputs.feature_rtl8188eu == 'true'
+        working-directory: kernel
+        run: |
+          git clone --depth=1 --branch master https://github.com/Geeeeeker/android_kernel_xiaomi_sdm845.git rtl8188eus-repo
+          cp -r rtl8188eus-repo/drivers/rtl8188eus drivers/
+          echo "obj-\$(CONFIG_RTL8188EU) += rtl8188eus/" >> drivers/Makefile
+          echo 'source "drivers/rtl8188eus/Kconfig"' >> drivers/Kconfig
+          rm -rf rtl8188eus-repo
+
+      - name: 配置 LXC/Docker 官方支持
+        if: github.event.inputs.feature_lxc == 'true' || github.event.inputs.feature_docker == 'true'
+        working-directory: kernel
+        run: |
+          git clone --depth=1 https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
+          echo 'source "utils/Kconfig"' >> Kconfig
+
+      - name: 配置内核参数
+        working-directory: kernel
+        run: |
+          DEFCONFIG="arch/arm64/configs/dipper-mi845_defconfig"
+
+          # 基础系统
+          if [[ "${{ github.event.inputs.feature_base }}" == "true" ]]; then
+            echo "CONFIG_SYSVIPC=y" >> $DEFCONFIG
+            echo "CONFIG_EPOLL=y" >> $DEFCONFIG
+            echo "CONFIG_TMPFS=y" >> $DEFCONFIG
+          fi
+
+          sed -i 's/CONFIG_LTO=y/CONFIG_LTO=n/' $DEFCONFIG
+          echo "CONFIG_LTO_NONE=y" >> $DEFCONFIG
+          echo "CONFIG_CC_WERROR=n" >> $DEFCONFIG
+
+          if [[ "${{ github.event.inputs.feature_usb_gadget }}" == "true" ]]; then
+            echo "CONFIG_USB_GADGET=y" >> $DEFCONFIG
+            echo "CONFIG_USB_CONFIGFS=y" >> $DEFCONFIG
+          fi
+
+          if [[ "${{ github.event.inputs.feature_usb_serial }}" == "true" ]]; then
+            echo "CONFIG_USB_SERIAL=y" >> $DEFCONFIG
+            echo "CONFIG_USB_SERIAL_CH341=y" >> $DEFCONFIG
+          fi
+
+          if [[ "${{ github.event.inputs.feature_usbip }}" == "true" ]]; then
+            echo "CONFIG_USBIP_CORE=y" >> $DEFCONFIG
+          fi
+
+          if [[ "${{ github.event.inputs.feature_lxc }}" == "true" ]]; then
+            echo "CONFIG_NAMESPACES=y" >> $DEFCONFIG
+            echo "CONFIG_CGROUPS=y" >> $DEFCONFIG
+            echo "CONFIG_USER_NS=y" >> $DEFCONFIG
+          fi
+
+          if [[ "${{ github.event.inputs.feature_docker }}" == "true" ]]; then
+            echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
+            echo "CONFIG_VLAN_8021Q=y" >> $DEFCONFIG
+            echo "CONFIG_BRIDGE=y" >> $DEFCONFIG
+            echo "CONFIG_DOCKER=y" >> $DEFCONFIG
+            sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' $DEFCONFIG
+            echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> $DEFCONFIG
+          fi
+
+          if [[ "${{ github.event.inputs.feature_zram }}" == "true" ]]; then
+            echo "CONFIG_ZRAM=y" >> $DEFCONFIG
+          fi
+
+          if [[ "${{ github.event.inputs.feature_android_container }}" == "true" ]]; then
+            echo "CONFIG_ASHMEM=y" >> $DEFCONFIG
+            echo "CONFIG_ANDROID_BINDER_IPC=y" >> $DEFCONFIG
+          fi
+
+          if [[ "${{ github.event.inputs.feature_ksu_symbols }}" == "true" ]]; then
+            echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
+            echo "CONFIG_KPROBES=y" >> $DEFCONFIG
+          fi
+
+          if [[ "${{ github.event.inputs.feature_kvm }}" == "true" ]]; then
+            echo "CONFIG_KVM=y" >> $DEFCONFIG
+          fi
+
+          if [[ "${{ github.event.inputs.feature_rtl8188eu }}" == "true" ]]; then
+            echo "CONFIG_RTL8188EU=y" >> $DEFCONFIG
+          fi
+
+          echo "CONFIG_DRM_LINDROID_EVDI=y" >> $DEFCONFIG
+
+          # ========== SukiSU 和 SUSFS 配置 ==========
+          # 注意：SukiSU 使用 CONFIG_SUKISU_ 前缀，而非 CONFIG_KSU_
+          echo "CONFIG_SUKISU=y" >> $DEFCONFIG
+          echo "CONFIG_SUKISU_KPROBES_HOOK=y" >> $DEFCONFIG
+
+          # 可选：开启 KPM 支持（SukiSU 特有功能）
+          # echo "CONFIG_SUKISU_KPM=y" >> $DEFCONFIG
+
+          if [[ "${{ env.SUSFS_ENABLE }}" == "true" ]]; then
+            echo "CONFIG_SUKISU_SUSFS=y" >> $DEFCONFIG
+            echo "CONFIG_SUKISU_SUSFS_SUS_PATH=y" >> $DEFCONFIG
+            echo "CONFIG_SUKISU_SUSFS_SUS_MOUNT=y" >> $DEFCONFIG
+            echo "CONFIG_SUKISU_SUSFS_SUS_KSTAT=y" >> $DEFCONFIG
+            echo "CONFIG_SUKISU_SUSFS_SUS_OVERLAYFS=y" >> $DEFCONFIG
+            echo "CONFIG_SUKISU_SUSFS_TRY_UMOUNT=y" >> $DEFCONFIG
+            echo "CONFIG_SUKISU_SUSFS_SPOOF_UNAME=y" >> $DEFCONFIG
+            echo "CONFIG_SUKISU_SUSFS_ENABLE_LOG=y" >> $DEFCONFIG
+            echo "CONFIG_SUKISU_SUSFS_SUS_SU=y" >> $DEFCONFIG
+          fi
+
+          # 删除原有的 CONFIG_LOCALVERSION 配置，再添加新的
+          sed -i '/^CONFIG_LOCALVERSION/d' $DEFCONFIG
+          echo "CONFIG_LOCALVERSION=\"${{ github.event.inputs.localversion }}\"" >> $DEFCONFIG
+          echo "# CONFIG_MODVERSIONS is not set" >> $DEFCONFIG
+
+          # 生成 .config
+          make O=out ARCH=arm64 dipper-mi845_defconfig
+
+          # 进入 out 目录用 scripts/config 预设新选项，避免交互
+          cd out
+          ../scripts/config --file .config --set-val BLK_DEV_THROTTLING_LOW n
+          ../scripts/config --file .config --set-val QTI_GVM n
+          if [[ "${{ github.event.inputs.feature_rtl8188eu }}" == "true" ]]; then
+            ../scripts/config --file .config --enable RTL8188EU
+          else
+            ../scripts/config --file .config --disable RTL8188EU
+          fi
+
+          make O=$PWD ARCH=arm64 olddefconfig 2>/dev/null || yes "" | make O=$PWD ARCH=arm64 oldconfig
+          cd ..
+
+      - name: 编译内核
+        working-directory: kernel
+        run: |
+          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+          export KBUILD_BUILD_USER=${{ github.repository_owner }}
+          export KBUILD_BUILD_HOST=github-runner
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+          make -j$(nproc --all) \
+            CC="ccache clang" \
+            ARCH=arm64 \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            O=out \
+            KCFLAGS="-Wno-unknown-warning-option -Wno-implicit-function-declaration -Wno-error" \
+            all
+
+      - name: 收集内核模块
+        run: |
+          mkdir -p modules-out
+          cp kernel/out/drivers/usb/usbip/*.ko modules-out/ 2>/dev/null || true
+          cp kernel/out/fs/susfs.ko modules-out/ 2>/dev/null || true
+          cp kernel/out/fs/sus_su.ko modules-out/ 2>/dev/null || true
+          cp kernel/out/drivers/kernelsu/kernelsu.ko modules-out/ 2>/dev/null || true
+          cp kernel/out/drivers/sukisu/sukisu.ko modules-out/ 2>/dev/null || true
+          cp kernel/out/drivers/gpu/drm/evdi/evdi.ko modules-out/ 2>/dev/null || true
+          cp kernel/out/drivers/gpu/drm/lindroid-evd.ko modules-out/ 2>/dev/null || true
+          if [ "$(ls -A modules-out)" ]; then
+            tar czf kernel-modules-${{ matrix.device }}.tar.gz -C modules-out .
+            echo "MODULES_PACKAGE=kernel-modules-${{ matrix.device }}.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: 上传模块包
+        if: env.MODULES_PACKAGE != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-modules-${{ matrix.device }}
+          path: ${{ env.MODULES_PACKAGE }}
+
+      # ========== 以下部分保持不变 ==========
+      - name: 设置 QEMU 用户态支持 (USB/IP 工具编译)
+        if: github.event.inputs.feature_usbip == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+      - name: 编译 USB/IP 用户态工具 (Docker 容器)
+        if: github.event.inputs.feature_usbip == 'true'
+        run: |
+          mkdir -p usbip-out/{bin,libs}
+          docker run --rm --platform linux/arm64 \
+            --memory=4g \
+            -v ${{ github.workspace }}:/workspace \
+            -v ${{ github.workspace }}/usbip-out:/output \
+            -w /workspace/kernel \
+            arm64v8/ubuntu:22.04 \
+            bash -c "
+              set -e
+              export DEBIAN_FRONTEND=noninteractive
+              ulimit -s unlimited
+              apt update
+              apt install -y \
+                build-essential \
+                autoconf \
+                libtool \
+                pkg-config \
+                libudev-dev:arm64 \
+                libssl-dev:arm64 \
+                flex \
+                bison \
+                bc \
+                libelf-dev \
+                file \
+                patchelf
+              export ARCH=arm64
+              export CROSS_COMPILE=aarch64-linux-gnu-
+              export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+              cd tools/usb/usbip
+              ./autogen.sh
+              ./configure \
+                CFLAGS=\"-fPIC -Wno-error -Wno-error=stringop-truncation \
+                         -I/workspace/kernel/out/include \
+                         -I/workspace/kernel/out/arch/arm64/include/generated \
+                         -I/workspace/kernel/arch/arm64/include\" \
+                --with-tcp-wrappers=no
+              make -j1
+              cp src/.libs/usbip /output/bin/
+              cp src/.libs/usbipd /output/bin/
+              cp libsrc/.libs/libusbip.so.0* /output/libs/
+              cd /output
+              BINARIES=\"bin/usbip bin/usbipd libs/libusbip.so.0*\"
+              DEPS=\"\"
+              for file in \$BINARIES; do
+                if [ -f \"\$file\" ]; then
+                  needed=\$(readelf -d \"\$file\" | grep NEEDED | awk '{print \$5}' | tr -d '[]' || true)
+                  for lib in \$needed; do
+                    if [[ \"\$DEPS\" != *\"\$lib\"* ]]; then
+                      DEPS=\"\$DEPS \$lib\"
+                    fi
+                  done
+                fi
+              done
+              for lib in \$(echo \$DEPS | tr ' ' '\\n' | sort -u); do
+                libpath=\$(ldconfig -p | grep \"\$lib (\" | head -1 | awk '{print \$NF}' || true)
+                if [ -z \"\$libpath\" ]; then
+                  libpath=\$(find /lib /usr/lib -name \"\$lib\" -type f 2>/dev/null | head -1 || true)
+                fi
+                if [ -n \"\$libpath\" ]; then
+                  cp -P \"\$libpath\" libs/ 2>/dev/null || cp \"\$libpath\" libs/
+                  for reallib in \$(find \"\$(dirname \"\$libpath\")\" -name \"\${lib%.so*}*\" -type f 2>/dev/null); do
+                    cp -n \"\$reallib\" libs/ 2>/dev/null || true
+                  done
+                fi
+              done
+              ld_linux=\"/lib/ld-linux-aarch64.so.1\"
+              if [ -f \"\$ld_linux\" ]; then
+                cp -P \"\$ld_linux\" libs/
+              fi
+            "
+
+      - name: 打包 USB/IP 产物
+        if: github.event.inputs.feature_usbip == 'true'
+        run: |
+          cd usbip-out
+          tar czf ../usbip-arm64-bundle.tar.gz .
+          cd ..
+
+      - name: 上传 USB/IP 捆绑包
+        if: github.event.inputs.feature_usbip == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: usbip-arm64-bundle
+          path: usbip-arm64-bundle.tar.gz
+      # ========== USB/IP 结束 ==========
+
+      - name: 下载管理器 APK
+        run: |
+          mkdir -p apk-output
+          wget -O apk-output/Magisk.apk "https://github.com/topjohnwu/Magisk/releases/download/v30.7/Magisk-v30.7.apk" || true
+        continue-on-error: true
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Manager-APKs
+          path: apk-output/*.apk
+
+      - name: 打包 AnyKernel3
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3 ak3
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb ak3/
+          cp kernel/out/arch/arm64/boot/dtbo.img ak3/ || true
+          cd ak3
+          cat >anykernel.sh <<EOF
+          properties() { '
+          kernel.string=SukiSU + SUSFS for ${{ matrix.device }}
+          device.name1=${{ matrix.device }}
+          do.devicecheck=1
+          '; }
+          ramdisk_compression=auto
+          patch_vbmeta_flag=auto
+          is_slot_device=auto
+          block=auto
+          . tools/ak3-core.sh
+          split_boot
+          flash_boot
+          EOF
+          ZIP_NAME="AnyKernel3-${{ matrix.device }}-${{ env.ANDROID_VERSION }}-arm64.zip"
+          7z a -tzip "../${ZIP_NAME}" * -x!.git -x!.github -x!README.md -x!*placeholder
+          echo "AK3_ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+
+      - name: 打包 boot.img
+        run: |
+          git clone --depth=1 https://android.googlesource.com/platform/system/tools/mkbootimg mkbootimg
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb mkbootimg/
+          cd mkbootimg
+          # 需要替换为 dipper 的 boot.img
+          BOOT_IMG_URL="https://github.com/Geeeeeker/boot/releases/download/extracted-roms-20260322-062443/LineageOS_boot_dipper.img"
+          curl -LSs "$BOOT_IMG_URL" -o boot.img
+          mkbootimg_args=$(./unpack_bootimg.py --out out --boot_img boot.img --format mkbootimg)
+          mv Image.gz-dtb out/kernel
+          eval "./mkbootimg.py $mkbootimg_args -o boot-lineage-${{ matrix.device }}.img"
+          echo "BOOT_IMG_NAME=boot-lineage-${{ matrix.device }}.img" >> $GITHUB_ENV
+
+      - name: 上传 AnyKernel3
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ matrix.device }}-ak3
+          path: ${{ env.AK3_ZIP_NAME }}
+
+      - name: 上传 boot.img
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ matrix.device }}-boot
+          path: mkbootimg/${{ env.BOOT_IMG_NAME }}
+
+  release:
+    name: 发布
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: 重命名发布资产为规范格式
+        run: |
+          cd artifacts
+          DEVICE="dipper"
+          ANDROID_VER="${{ env.ANDROID_VERSION }}"
+          PACKAGE_NAME="kernel"
+          
+          for file in *.zip; do
+            [ -f "$file" ] && mv "$file" "${PACKAGE_NAME}-${DEVICE}-${ANDROID_VER}.zip"
+          done
+          for file in *.img; do
+            [ -f "$file" ] && mv "$file" "${PACKAGE_NAME}-${DEVICE}-${ANDROID_VER}.img"
+          done
+          for file in *.apk; do
+            [ -f "$file" ] && mv "$file" "${PACKAGE_NAME}-${DEVICE}-${ANDROID_VER}-manager.apk"
+          done
+          if [ -f usbip-arm64-bundle.tar.gz ]; then
+            mv usbip-arm64-bundle.tar.gz "usbip-${DEVICE}-${ANDROID_VER}.tar.gz"
+          fi
+          if [ -f kernel-modules-dipper.tar.gz ]; then
+            mv kernel-modules-dipper.tar.gz "kernel-modules-${DEVICE}-${ANDROID_VER}.tar.gz"
+          fi
+      - name: 获取时间戳
+        id: time
+        run: echo "time=$(TZ='Asia/Shanghai' date -u +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
+
+      - name: 发布到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rel-${{ steps.time.outputs.time }}
+          name: "Kernel build ${{ steps.time.outputs.time }}"
+          draft: false
+          prerelease: true
+          files: artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
