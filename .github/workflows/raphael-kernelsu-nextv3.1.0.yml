@@ -146,6 +146,7 @@ jobs:
 
           # 基础系统
           if [[ "${{ github.event.inputs.feature_base }}" == "true" ]]; then
+            echo "CONFIG_SECTION_MISMATCH_WARN_ONLY=y" >> $DEFCONFIG
             echo "CONFIG_SYSVIPC=y" >> $DEFCONFIG
             echo "CONFIG_EPOLL=y" >> $DEFCONFIG
             echo "CONFIG_TMPFS=y" >> $DEFCONFIG
