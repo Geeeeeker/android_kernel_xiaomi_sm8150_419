@@ -92,7 +92,7 @@ jobs:
       - name: 同步内核源码 (内置 KSU-next 和 SUSFS)
         uses: actions/checkout@v4
         with:
-          repository: Geeeeeker/kernel_xiaomi_raphael-pixel
+          repository: SOVIET-ANDROID/kernel_xiaomi_raphael
           ref: 16.0-susfs
           path: kernel
 
