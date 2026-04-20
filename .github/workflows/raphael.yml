@@ -1,4 +1,4 @@
-name: 编译内核 (内置 KSU-nextv3.1.0 + SUSFSv2.1.0 + Docker)
+name: 编译内核 (内置 KSU-nextv3.2.0 + SUSFSv2.1.0 + Docker)
 
 on:
   push:
