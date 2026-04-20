@@ -453,7 +453,7 @@ jobs:
       - name: 重命名发布资产为规范格式
         run: |
           cd artifacts
-          DEVICE="dipper"
+          DEVICE="raphael"
           ANDROID_VER="${{ env.ANDROID_VERSION }}"
           PACKAGE_NAME="kernel"
           
@@ -469,8 +469,8 @@ jobs:
           if [ -f usbip-arm64-bundle.tar.gz ]; then
             mv usbip-arm64-bundle.tar.gz "usbip-${DEVICE}-${ANDROID_VER}.tar.gz"
           fi
-          if [ -f kernel-modules-dipper.tar.gz ]; then
-            mv kernel-modules-dipper.tar.gz "kernel-modules-${DEVICE}-${ANDROID_VER}.tar.gz"
+          if [ -f kernel-modules-raphael.tar.gz ]; then
+            mv kernel-modules-raphael.tar.gz "kernel-modules-${DEVICE}-${ANDROID_VER}.tar.gz"
           fi
       - name: 获取时间戳
         id: time
