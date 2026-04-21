@@ -427,63 +427,37 @@ jobs:
             KCFLAGS="-Wno-unknown-warning-option -Wno-implicit-function-declaration -Wno-error" \
             all
 
-      - name: 下载 kptools 并静态修补内核镜像 (KPM 支持)
+      - name: 下载 kptools/kpimg 并静态修补内核镜像 (KPM 支持)
         working-directory: kernel/out/arch/arm64/boot
         run: |
           set -e
-
-          echo ">>> 1. 下载 kptools"
+          echo ">>> 1. 下载 kptools 和 kpimg"
           wget -q https://github.com/KernelSU-Next/KPatch-Next/releases/download/0.13.5-2/kptools-linux -O kptools
+          wget -q https://github.com/KernelSU-Next/KPatch-Next/releases/download/0.13.5-2/kpimg-linux -O kpimg
           chmod +x kptools
+          chmod 644 kpimg
 
-          echo ">>> 2. 分离内核镜像与 DTB"
-          # Image.gz-dtb 是 gzip 压缩的内核 + 未压缩的 dtb 数据拼接而成
-          # 使用 split-appended-kernel 或手动分离
-          # 简单方法：利用 gzip 解压时忽略尾部垃圾的特性，提取纯内核
-          gunzip -c Image.gz-dtb > Image.raw 2>/dev/null || true
-          # 获取尾部 dtb 数据（如果有）
-          # 计算 gzip 压缩部分的大小
-          GZIP_SIZE=$(gzip -l Image.gz-dtb | awk 'NR==2 {print $2}')
-          # 提取尾部数据
-          tail -c +$((GZIP_SIZE + 1)) Image.gz-dtb > dtb_data.bin 2>/dev/null || true
-
-          echo "内核大小: $(stat -c%s Image.raw) bytes"
-          echo "DTB 大小: $(stat -c%s dtb_data.bin 2>/dev/null || echo 0) bytes"
+          echo ">>> 2. 解压内核镜像"
+          cp Image.gz-dtb Image.gz-dtb.backup
+          gunzip -c Image.gz-dtb > Image.raw
+          echo "内核原始大小: $(stat -c%s Image.raw) bytes"
 
           echo ">>> 3. 执行 kptools 静态修补"
-          set +e
-          ./kptools -i Image.raw -o Image.patched 2>&1 | tee kptools.log
-          KPTOOLS_EXIT=$?
-          set -e
+          # 关键命令：-p 执行修补，-i 指定内核，-k 指定 kpimg，-o 输出文件
+          ./kptools -p -i Image.raw -k kpimg -o Image.patched
 
-          if [ $KPTOOLS_EXIT -eq 0 ] && [ -f Image.patched ]; then
+          if [ -f Image.patched ] && [ $(stat -c%s Image.patched) -gt 0 ]; then
               echo "✅ 静态修补成功"
-
-              # 重新组合：压缩修补后的内核，并追加 dtb 数据
-              gzip -c Image.patched > Image.gz
-              if [ -s dtb_data.bin ]; then
-                  cat Image.gz dtb_data.bin > Image.gz-dtb
-                  echo "已重新拼接 dtb 数据"
-              else
-                  mv Image.gz Image.gz-dtb
-              fi
-              rm -f Image.raw Image.patched Image.gz dtb_data.bin
-              echo "✅ 已替换为修补后的内核镜像"
+              rm -f Image.raw
+              gzip -c Image.patched > Image.gz-dtb
+              echo "已替换为修补后的内核镜像"
           else
-              echo "⚠️ 警告: kptools 修补失败 (退出码: $KPTOOLS_EXIT)"
-              echo "--- kptools 输出 ---"
-              cat kptools.log
-              echo "---------------------"
-              echo "将使用原始内核镜像继续打包。"
-              echo "KPM 功能可以通过刷入 KPatch-Next-Module 模块来启用（前提是内核已开启 CONFIG_KALLSYMS_ALL）。"
-              # 恢复原镜像（无需操作，因为我们未修改原文件）
+              echo "❌ 错误: 未生成修补后镜像，请检查日志"
+              exit 1
           fi
 
-          # 清理
-          rm -f kptools kptools.log Image.raw Image.patched Image.gz dtb_data.bin 2>/dev/null || true
-
           # 清理临时文件
-          rm -f Image.raw Image.patched kptools kptools.log
+          rm -f Image.raw Image.patched kptools kpimg Image.gz-dtb.backup
 
       - name: 收集内核模块
         run: |
