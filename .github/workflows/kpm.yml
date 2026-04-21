@@ -427,26 +427,47 @@ jobs:
             KCFLAGS="-Wno-unknown-warning-option -Wno-implicit-function-declaration -Wno-error" \
             all
 
-      # ========== KPM 静态修补：集成 KPatch-Next ==========
-      - name: 下载 kptools 并静态修补内核镜像
+      - name: 下载 kptools 并静态修补内核镜像 (KPM 支持)
         working-directory: kernel/out/arch/arm64/boot
         run: |
-          # 下载 Linux 平台的 kptools
+          set -e  # 遇到错误立即退出，但我们会先尝试捕获
+
+          echo ">>> 1. 下载 kptools"
           wget -q https://github.com/KernelSU-Next/KPatch-Next/releases/download/0.13.5-2/kptools-linux -O kptools
           chmod +x kptools
-          
-          # 解压内核镜像 (如果是 Image.gz-dtb)
-          gunzip -c Image.gz-dtb > Image
-          
-          # 使用 kptools 进行静态修补
-          # 注意: 根据官方文档，修补命令是 "-i <input> -o <output>"，不需要额外参数
-          ./kptools -i Image -o Image.patched
-          
-          # 重新压缩并替换原镜像
-          gzip -c Image.patched > Image.gz-dtb
-          rm -f Image Image.patched
-          
-          echo "✅ KPM 静态修补完成。"
+          file kptools
+
+          echo ">>> 2. 解压内核镜像"
+          # 先备份原文件
+          cp Image.gz-dtb Image.gz-dtb.backup
+          gunzip -c Image.gz-dtb > Image.raw
+          echo "解压后大小: $(stat -c%s Image.raw) bytes"
+
+          echo ">>> 3. 执行 kptools 静态修补"
+          # 尝试修补，并捕获输出
+          set +e
+          ./kptools -i Image.raw -o Image.patched 2>&1 | tee kptools.log
+          KPTOOLS_EXIT=$?
+          set -e
+
+          if [ $KPTOOLS_EXIT -eq 0 ] && [ -f Image.patched ]; then
+              echo "✅ 静态修补成功"
+              rm -f Image.raw
+              gzip -c Image.patched > Image.gz-dtb
+              echo "已替换为修补后的内核镜像"
+          else
+              echo "⚠️ 警告: kptools 修补失败 (退出码: $KPTOOLS_EXIT)"
+              echo "--- kptools 输出 ---"
+              cat kptools.log
+              echo "---------------------"
+              echo "将使用原始内核镜像继续打包。"
+              echo "KPM 功能可以通过刷入 KPatch-Next-Module 模块来启用（前提是内核已开启 CONFIG_KALLSYMS_ALL）。"
+              # 恢复原镜像
+              mv Image.gz-dtb.backup Image.gz-dtb
+          fi
+
+          # 清理临时文件
+          rm -f Image.raw Image.patched kptools kptools.log
 
       - name: 收集内核模块
         run: |
