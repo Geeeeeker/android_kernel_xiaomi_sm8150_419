@@ -91,7 +91,7 @@ jobs:
           sudo apt update > /dev/null
           sudo apt install -y ${{ env.PACKAGES }} > /dev/null
 
-      - name: 同步内核源码 (内置 KSU-next 和 SUSFS)
+      - name: 同步内核源码 (内置 KSU-next)
         uses: actions/checkout@v4
         with:
           repository: SOVIET-ANDROID/kernel_xiaomi_raphael
@@ -142,30 +142,36 @@ jobs:
           echo 'source "utils/Kconfig"' >> Kconfig
 
       # ========== 克隆 SUSFS 仓库 ==========
-      - name: 配置 SUSFS
+      - name: 克隆 SUSFS 仓库
         if: env.SUSFS_ENABLE == 'true'
         working-directory: kernel
         run: |
           git clone --depth=1 --branch ${{ env.SUSFS_BRANCH }} ${{ env.SUSFS_SOURCE }} ../susfs4ksu
 
-      # ========== 应用 SUSFS 补丁 ==========
+      # ========== 应用 SUSFS 补丁（适配已内置 KSU 的源码） ==========
       - name: 应用 SUSFS 补丁
         if: env.SUSFS_ENABLE == 'true'
         working-directory: kernel
         run: |
+          # 复制补丁文件到对应位置
           cp ../susfs4ksu/kernel_patches/fs/* fs/
           cp ../susfs4ksu/kernel_patches/include/linux/* include/linux/
+
+          # 确定内核版本（从分支名提取，此处固定为 4.14）
           KERNEL_VER=$(echo "${{ env.SUSFS_BRANCH }}" | sed 's/^kernel-//')
           cp ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-${KERNEL_VER}.patch ./
-          
+
+          # 应用内核主体补丁
           patch -p1 < 50_add_susfs_in_kernel-${KERNEL_VER}.patch || true
-          
-          # 修复 fdinfo.c 中的变量名错误
+
+          # 修复 fdinfo.c 中的变量名错误（常见于 4.14 内核）
           sed -i '144s/mask,/mark->mask,/' fs/notify/fdinfo.c
-          
-          cd ../KernelSU/
-          cp ../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
+
+          # 进入内核自带的 KernelSU 目录，应用 SUSFS 集成补丁
+          cd drivers/kernelsu
+          cp ../../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
           patch -p1 < 10_enable_susfs_for_ksu.patch || true
+          cd ../..
 
       - name: 配置内核参数
         working-directory: kernel
