@@ -94,8 +94,8 @@ jobs:
       - name: 同步内核源码 (内置 KSU-next)
         uses: actions/checkout@v4
         with:
-          repository: SOVIET-ANDROID/kernel_xiaomi_raphael
-          ref: dev/sixteen
+          repository: Geeeeeker/kernel_xiaomi_raphael
+          ref: dev/90hz
           path: kernel
 
       # ========== 修复：注释掉 Btrfs 相关配置 ==========
