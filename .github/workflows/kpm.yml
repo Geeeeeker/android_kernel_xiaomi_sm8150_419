@@ -427,26 +427,26 @@ jobs:
             KCFLAGS="-Wno-unknown-warning-option -Wno-implicit-function-declaration -Wno-error" \
             all
 
-      # ========== KPM 静态修补 ==========
+      # ========== KPM 静态修补：集成 KPatch-Next ==========
       - name: 下载 kptools 并静态修补内核镜像
-        if: github.event.inputs.feature_kpm == 'true'
         working-directory: kernel/out/arch/arm64/boot
         run: |
-          wget -q https://github.com/KernelSU-Next/KPatch-Next/releases/latest/download/kptools-x86_64 -O kptools
+          # 下载 Linux 平台的 kptools
+          wget -q https://github.com/KernelSU-Next/KPatch-Next/releases/download/0.13.5-2/kptools-linux -O kptools
           chmod +x kptools
-          # 解压 Image.gz-dtb 为原始 Image
-          if [ -f Image.gz-dtb ]; then
-            gunzip -c Image.gz-dtb > Image
-          elif [ -f Image.gz ]; then
-            gunzip -c Image.gz > Image
-          else
-            cp Image Image.raw
-          fi
-          # 静态修补
-          ./kptools -i Image -o Image.patched --patch-kpm
-          # 重新压缩并替换
+          
+          # 解压内核镜像 (如果是 Image.gz-dtb)
+          gunzip -c Image.gz-dtb > Image
+          
+          # 使用 kptools 进行静态修补
+          # 注意: 根据官方文档，修补命令是 "-i <input> -o <output>"，不需要额外参数
+          ./kptools -i Image -o Image.patched
+          
+          # 重新压缩并替换原镜像
           gzip -c Image.patched > Image.gz-dtb
-          rm -f Image Image.patched kptools
+          rm -f Image Image.patched
+          
+          echo "✅ KPM 静态修补完成。"
 
       - name: 收集内核模块
         run: |
