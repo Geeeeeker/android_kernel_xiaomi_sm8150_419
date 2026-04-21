@@ -481,7 +481,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y qemu-user-static
           docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
       - name: 编译 USB/IP 用户态工具 (Docker 容器)
         if: github.event.inputs.feature_usbip == 'true'
         run: |
@@ -555,14 +554,12 @@ jobs:
                 cp -P \"\$ld_linux\" libs/
               fi
             "
-
       - name: 打包 USB/IP 产物
         if: github.event.inputs.feature_usbip == 'true'
         run: |
           cd usbip-out
           tar czf ../usbip-arm64-bundle.tar.gz .
           cd ..
-
       - name: 上传 USB/IP 捆绑包
         if: github.event.inputs.feature_usbip == 'true'
         uses: actions/upload-artifact@v4
