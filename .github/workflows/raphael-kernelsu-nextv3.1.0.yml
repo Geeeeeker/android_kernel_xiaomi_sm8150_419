@@ -148,7 +148,6 @@ jobs:
         run: |
           git clone --depth=1 --branch ${{ env.SUSFS_BRANCH }} ${{ env.SUSFS_SOURCE }} ../susfs4ksu
 
-      # ========== 应用 SUSFS 补丁（适配已内置 KSU 的源码） ==========
       - name: 应用 SUSFS 补丁
         if: env.SUSFS_ENABLE == 'true'
         working-directory: kernel
@@ -157,20 +156,21 @@ jobs:
           cp ../susfs4ksu/kernel_patches/fs/* fs/
           cp ../susfs4ksu/kernel_patches/include/linux/* include/linux/
 
-          # 确定内核版本（从分支名提取，此处固定为 4.14）
+          # 确定内核版本（此处固定为 4.14）
           KERNEL_VER=$(echo "${{ env.SUSFS_BRANCH }}" | sed 's/^kernel-//')
           cp ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-${KERNEL_VER}.patch ./
 
-          # 应用内核主体补丁
+          # 应用内核主体补丁（允许部分失败，但核心功能可能受影响）
           patch -p1 < 50_add_susfs_in_kernel-${KERNEL_VER}.patch || true
 
-          # 修复 fdinfo.c 中的变量名错误（常见于 4.14 内核）
+          # 修复 fdinfo.c 中的变量名错误（适用于 4.14 内核）
           sed -i '144s/mask,/mark->mask,/' fs/notify/fdinfo.c
 
           # 进入内核自带的 KernelSU 目录，应用 SUSFS 集成补丁
           cd drivers/kernelsu
           cp ../../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
-          patch -p1 < 10_enable_susfs_for_ksu.patch || true
+          # 使用 -p2 去掉补丁中的 kernel/ 前缀，使其匹配当前目录下的文件
+          patch -p2 < 10_enable_susfs_for_ksu.patch || true
           cd ../..
 
       - name: 配置内核参数
