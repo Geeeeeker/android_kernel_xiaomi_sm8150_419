@@ -91,11 +91,10 @@ jobs:
           # 确保 BPF 系统调用开启
           echo "CONFIG_BPF_SYSCALL=y" >> $DEFCONFIG
 
-      # ========== 内核配置修改 (LXC/Docker / RTL8188EUS / 修复) ==========
       - name: 配置 LXC 和 Docker 内核支持
         working-directory: kernel
         run: |
-          DEFCONFIG="arch/arm64/configs/raphael_defconfig
+          DEFCONFIG="arch/arm64/configs/raphael_defconfig"
 
           # 克隆 lxc-docker-support 仓库
           rm -rf utils
