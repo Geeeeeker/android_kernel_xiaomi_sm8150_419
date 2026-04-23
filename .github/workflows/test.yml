@@ -71,11 +71,6 @@ jobs:
         working-directory: kernel
         run: |
           DEFCONFIG="arch/arm64/configs/raphael_defconfig"
-          # 开启 Kprobes
-          echo "CONFIG_MODULES=y" >> $DEFCONFIG
-          echo "CONFIG_KPROBES=y" >> $DEFCONFIG
-          echo "CONFIG_HAVE_KPROBES=y" >> $DEFCONFIG
-          echo "CONFIG_KPROBE_EVENTS=y" >> $DEFCONFIG
           # 开启 OverlayFS
           echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
           # 禁用 LTO
