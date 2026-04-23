@@ -157,7 +157,103 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             raphael_defconfig Image.gz dtbs
-
+      # ========== USB/IP 支持 ==========
+      - name: 设置 QEMU 用户态支持 (用于 arm64 容器)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static binfmt-support
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+      - name: 编译 USB/IP 内核模块（可选）
+        working-directory: kernel
+        run: |
+          export PATH="$GITHUB_WORKSPACE/clang/bin:$PATH"
+          make -j$(nproc) \
+            ARCH=arm64 \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            O=out \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            M=drivers/usb/usbip \
+            modules || echo "Warning: USB/IP modules build skipped or failed."
+          mkdir -p $GITHUB_WORKSPACE/usbip-out/modules
+          # 仅当 .ko 文件存在时才复制
+          if ls out/drivers/usb/usbip/*.ko 1> /dev/null 2>&1; then
+              cp out/drivers/usb/usbip/*.ko $GITHUB_WORKSPACE/usbip-out/modules/
+          else
+              echo "No USB/IP kernel modules generated (probably built-in)."
+          fi
+      - name: 编译 USB/IP 用户态工具 (Docker arm64 容器)
+        run: |
+          mkdir -p usbip-out/{bin,libs}
+          docker run --rm --platform linux/arm64 \
+            --memory=6g \
+            -v ${{ github.workspace }}:/workspace \
+            -v ${{ github.workspace }}/usbip-out:/output \
+            -w /workspace/kernel \
+            arm64v8/ubuntu:22.04 \
+            bash -c "
+              set -e
+              export DEBIAN_FRONTEND=noninteractive
+              ulimit -s unlimited
+              apt update
+              apt install -y \
+                build-essential \
+                autoconf \
+                libtool \
+                pkg-config \
+                libudev-dev \
+                libssl-dev \
+                flex \
+                bison \
+                file \
+                patchelf
+              cd tools/usb/usbip
+              ./autogen.sh
+              ./configure CFLAGS=\"-Wno-error -Wno-error=stringop-truncation\" --with-tcp-wrappers=no
+              make -j1
+              cp src/.libs/usbip /output/bin/
+              cp src/.libs/usbipd /output/bin/
+              cp libsrc/.libs/libusbip.so.0* /output/libs/
+              cd /output
+              BINARIES=\"bin/usbip bin/usbipd libs/libusbip.so.0*\"
+              DEPS=\"\"
+              for file in \$BINARIES; do
+                if [ -f \"\$file\" ]; then
+                  needed=\$(readelf -d \"\$file\" | grep NEEDED | awk '{print \$5}' | tr -d '[]' || true)
+                  for lib in \$needed; do
+                    if [[ \"\$DEPS\" != *\"\$lib\"* ]]; then
+                      DEPS=\"\$DEPS \$lib\"
+                    fi
+                  done
+                fi
+              done
+              for lib in \$(echo \$DEPS | tr ' ' '\\n' | sort -u); do
+                libpath=\$(ldconfig -p | grep \"\$lib (\" | head -1 | awk '{print \$NF}' || true)
+                if [ -z \"\$libpath\" ]; then
+                  libpath=\$(find /lib /usr/lib -name \"\$lib\" -type f 2>/dev/null | head -1 || true)
+                fi
+                if [ -n \"\$libpath\" ]; then
+                  cp -P \"\$libpath\" libs/ 2>/dev/null || cp \"\$libpath\" libs/
+                  for reallib in \$(find \"\$(dirname \"\$libpath\")\" -name \"\${lib%.so*}*\" -type f 2>/dev/null); do
+                    cp -n \"\$reallib\" libs/ 2>/dev/null || true
+                  done
+                fi
+              done
+              ld_linux=\"/lib/ld-linux-aarch64.so.1\"
+              if [ -f \"\$ld_linux\" ]; then
+                cp -P \"\$ld_linux\" libs/
+              fi
+            "
+      - name: 打包 USB/IP 产物
+        run: |
+          cd usbip-out
+          tar czf ../usbip-arm64-bundle.tar.gz .
+          cd ..
+      - name: 上传 USB/IP 捆绑包 (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: usbip-arm64-bundle
+          path: usbip-arm64-bundle.tar.gz
       - name: 打包 (AnyKernel3)
         run: |
           git clone https://github.com/osm0sis/AnyKernel3 --depth=1 ak3
