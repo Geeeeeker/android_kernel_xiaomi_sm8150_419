@@ -1,3 +1,4 @@
+CONFIG_BPF_EVENTS=y
 # ====== KernelSU Manual Hook 模式（无 KPROBES） ======
 # 核心依赖：禁用 KPROBES 系列，启用 Manual Hook
 # CONFIG_KPROBES is not set
