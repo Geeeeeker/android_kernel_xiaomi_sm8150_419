@@ -191,7 +191,7 @@ jobs:
       - name: 上传文件 (AnyKernel3)
         uses: actions/upload-artifact@v5
         with:
-          name: kernel-${{ matrix.device }}-ak3
+          name: anykernel3-${{ matrix.device }}-${{ env.AOSP_TOOLCHAIN_BRANCH }}
           path: ak3/Anykernel3-${{ matrix.device }}-${{ env.AOSP_TOOLCHAIN_BRANCH }}.zip
 
       # ========== 打包 boot.img (LineageOS) ==========
@@ -204,14 +204,14 @@ jobs:
           curl -LSs "$BOOT_IMG_URL" -o boot.img
           mkbootimg_args=$(./unpack_bootimg.py --out out --boot_img boot.img --format mkbootimg)
           mv Image.gz-dtb out/kernel
-          eval "./mkbootimg.py $mkbootimg_args -o boot-lineage-raphael.img"
-          echo "BOOT_IMG_NAME=boot-lineage-raphael.img" >> $GITHUB_ENV
+          eval "./mkbootimg.py $mkbootimg_args -o boot-lineage-${{ matrix.device }}.img"
+          echo "BOOT_IMG_NAME=boot-lineage-${{ matrix.device }}.img" >> $GITHUB_ENV
 
       - name: 上传文件 (boot.img)
         if: steps.boot.outputs.bootimg_generated == 'true'
         uses: actions/upload-artifact@v5
         with:
-          name: kernel-${{ matrix.device }}-boot
+          name: anykernel3-${{ matrix.device }}-boot
           path: mkbootimg/boot-lineage-${{ matrix.device }}.img
 
   release:
