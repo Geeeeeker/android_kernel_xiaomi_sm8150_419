@@ -194,42 +194,18 @@ jobs:
           name: kernel-${{ matrix.device }}-ak3
           path: ak3/Anykernel3-${{ matrix.device }}-${{ env.AOSP_TOOLCHAIN_BRANCH }}.zip
 
-      - name: 打包 (boot.img) – 若可获取官方 boot.img 则生成
-        id: boot
+      # ========== 打包 boot.img (LineageOS) ==========
+      - name: 打包 boot.img
         run: |
-          git clone https://android.googlesource.com/platform/system/tools/mkbootimg --depth=1 mkbootimg
+          git clone --depth=1 https://android.googlesource.com/platform/system/tools/mkbootimg mkbootimg
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb mkbootimg/
           cd mkbootimg
-          # 尝试从 LineageOS API 获取官方 boot.img 的下载地址
-          BOOT_URL=$(curl -fLSs "https://download.lineageos.org/api/v2/devices/${{ matrix.device }}/builds" 2>/dev/null | jq -r '.[0].files[1].url // empty') || true
-          if [ -z "$BOOT_URL" ]; then
-            echo "::warning::Unable to fetch boot.img URL from LineageOS API. Skipping boot.img generation."
-            exit 0
-          fi
-          echo "Downloading boot.img from $BOOT_URL"
-          curl -LSs "$BOOT_URL" -o boot.img
-          ./unpack_bootimg.py --out out --boot_img boot.img --format mkbootimg > mkbootimg_args.txt
-          mkbootimg_args=$(cat mkbootimg_args.txt)
-          # 用我们编译的内核替换解包出来的 kernel
-          cp ../kernel/out/arch/arm64/boot/Image.gz out/kernel
-          # 从编译输出替换 dtb
-          DTB_FILE=$(find ../kernel/out/arch/arm64/boot/dts -name "sm8150-xiaomi.dtb" | head -n1)
-          if [ -n "$DTB_FILE" ]; then
-            cp "$DTB_FILE" out/dtb
-          fi
-          # 添加 dtbo
-          DTBO_FILE=$(find ../kernel/out/arch/arm64/boot/dts -name "raphael*.dtbo" | head -n1)
-          if [ -n "$DTBO_FILE" ]; then
-            cp "$DTBO_FILE" out/dtbo
-          else
-            echo "::warning::No dtbo file found, skipping dtbo in boot image"
-          fi
-          # 检查 mkbootimg_args 是否已包含 --dtbo，若无则追加
-          if [[ "$mkbootimg_args" != *"--dtbo"* ]] && [ -f out/dtbo ]; then
-            mkbootimg_args="$mkbootimg_args --dtbo dtbo"
-          fi
-          # 执行打包命令
-          eval "./mkbootimg.py $mkbootimg_args -o boot-lineage-${{ matrix.device }}.img"
-          echo "bootimg_generated=true" >> $GITHUB_OUTPUT
+          BOOT_IMG_URL="https://github.com/Geeeeeker/boot/releases/download/extracted-roms-20260322-062443/LineageOS_boot.img"
+          curl -LSs "$BOOT_IMG_URL" -o boot.img
+          mkbootimg_args=$(./unpack_bootimg.py --out out --boot_img boot.img --format mkbootimg)
+          mv Image.gz-dtb out/kernel
+          eval "./mkbootimg.py $mkbootimg_args -o boot-lineage-raphael.img"
+          echo "BOOT_IMG_NAME=boot-lineage-raphael.img" >> $GITHUB_ENV
 
       - name: 上传文件 (boot.img)
         if: steps.boot.outputs.bootimg_generated == 'true'
